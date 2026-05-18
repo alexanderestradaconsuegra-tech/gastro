@@ -1,0 +1,174 @@
+{
+  "name": "Gastro - Bill Request",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "bill-request",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-bill-request",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300],
+      "webhookId": "bill-request"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ── Validate bill request payload ────────────────────────────\nconst body = $input.first().json.body ?? $input.first().json;\n\n// Required fields\nconst required = ['restaurant_id', 'qr_token'];\nfor (const field of required) {\n  if (!body[field]) {\n    throw new Error(`Missing required field: ${field}`);\n  }\n}\n\n// Generate call ID\nconst callId = 'C-' + Math.random().toString(36).slice(2, 10).toUpperCase();\n\n// Optional payment method preference\nconst paymentMethod = body.payment_method ?? null;\nlet message = 'Solicita la cuenta';\nif (paymentMethod) {\n  const allowed = ['Efectivo', 'Tarjeta', 'Transferencia'];\n  if (allowed.includes(paymentMethod)) {\n    message = `Solicita la cuenta - Pago: ${paymentMethod}`;\n  }\n}\n\nreturn [{\n  json: {\n    callId,\n    restaurant_id: body.restaurant_id,\n    qr_token: body.qr_token,\n    table_id: body.table_id ?? null,\n    session_id: body.session_id ?? null,\n    waiter_id: body.waiter_id ?? null,\n    message\n  }\n}];"
+      },
+      "id": "code-validate",
+      "name": "Validate Payload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/calls",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_SERVICE_KEY }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SUPABASE_SERVICE_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"id\": \"{{ $json.callId }}\",\n  \"restaurant_id\": \"{{ $json.restaurant_id }}\",\n  \"table_id\": {{ $json.table_id !== null ? $json.table_id : 'null' }},\n  \"session_id\": {{ $json.session_id ? '\"' + $json.session_id + '\"' : 'null' }},\n  \"waiter_id\": {{ $json.waiter_id ? '\"' + $json.waiter_id + '\"' : 'null' }},\n  \"source\": \"mesa\",\n  \"call_type\": \"Solicita cobro\",\n  \"priority\": \"Alta\",\n  \"status\": \"Pendiente\",\n  \"message\": \"{{ $json.message }}\"\n}",
+        "options": {}
+      },
+      "id": "http-insert-call",
+      "name": "Insert Bill Call",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/tables?qr_token=eq.{{ $('Validate Payload').item.json.qr_token }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_SERVICE_KEY }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SUPABASE_SERVICE_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"status\": \"Solicita cobro\",\n  \"last_activity_at\": \"{{ new Date().toISOString() }}\"\n}",
+        "options": {}
+      },
+      "id": "http-update-table",
+      "name": "Update Table to Solicita Cobro",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"ok\": true,\n  \"callId\": \"{{ $('Validate Payload').item.json.callId }}\"\n}",
+        "options": {
+          "responseCode": 201
+        }
+      },
+      "id": "respond-webhook",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1120, 300]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Validate Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Payload": {
+      "main": [
+        [
+          {
+            "node": "Insert Bill Call",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert Bill Call": {
+      "main": [
+        [
+          {
+            "node": "Update Table to Solicita Cobro",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Table to Solicita Cobro": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "name": "gastro"
+    }
+  ],
+  "triggerCount": 0,
+  "updatedAt": "2026-05-18T00:00:00.000Z",
+  "versionId": "1"
+}

@@ -1,0 +1,127 @@
+{
+  "name": "Gastro - Feedback",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "feedback",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-feedback",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300],
+      "webhookId": "feedback"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ── Validate rating and sanitize comment ─────────────────────\nconst body = $input.first().json.body ?? $input.first().json;\n\n// Required fields\nif (!body.restaurant_id) {\n  throw new Error('Missing required field: restaurant_id');\n}\n\n// Validate rating (integer 1–5)\nconst rating = parseInt(body.rating, 10);\nif (isNaN(rating) || rating < 1 || rating > 5) {\n  throw new Error('rating must be an integer between 1 and 5');\n}\n\n// Sanitize comment: strip HTML tags, trim, limit to 1000 chars\nlet comment = null;\nif (body.comment && typeof body.comment === 'string') {\n  comment = body.comment\n    .replace(/<[^>]*>/g, '')   // strip HTML\n    .replace(/[\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F]/g, '')  // strip control chars\n    .trim()\n    .slice(0, 1000);            // hard limit\n  if (comment.length === 0) comment = null;\n}\n\n// Validate source\nconst allowedSources = ['table_qr', 'admin', 'whatsapp', 'email'];\nconst source = allowedSources.includes(body.source) ? body.source : 'table_qr';\n\nreturn [{\n  json: {\n    restaurant_id: body.restaurant_id,\n    session_id: body.session_id ?? null,\n    table_id: body.table_id ?? null,\n    waiter_id: body.waiter_id ?? null,\n    rating,\n    comment,\n    source\n  }\n}];"
+      },
+      "id": "code-validate",
+      "name": "Validate & Sanitize",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/reviews",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_SERVICE_KEY }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SUPABASE_SERVICE_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"restaurant_id\": \"{{ $json.restaurant_id }}\",\n  \"session_id\": {{ $json.session_id ? '\"' + $json.session_id + '\"' : 'null' }},\n  \"table_id\": {{ $json.table_id !== null ? $json.table_id : 'null' }},\n  \"waiter_id\": {{ $json.waiter_id ? '\"' + $json.waiter_id + '\"' : 'null' }},\n  \"rating\": {{ $json.rating }},\n  \"comment\": {{ $json.comment ? '\"' + $json.comment.replace(/\"/g, '\\\\\"') + '\"' : 'null' }},\n  \"source\": \"{{ $json.source }}\"\n}",
+        "options": {}
+      },
+      "id": "http-insert-review",
+      "name": "Insert Review",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"ok\": true\n}",
+        "options": {
+          "responseCode": 201
+        }
+      },
+      "id": "respond-webhook",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [900, 300]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Validate & Sanitize",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate & Sanitize": {
+      "main": [
+        [
+          {
+            "node": "Insert Review",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert Review": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "name": "gastro"
+    }
+  ],
+  "triggerCount": 0,
+  "updatedAt": "2026-05-18T00:00:00.000Z",
+  "versionId": "1"
+}

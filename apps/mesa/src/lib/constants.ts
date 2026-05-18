@@ -49,6 +49,7 @@ export const MENU: MenuItem[] = [
     tags: ["vegetariano", "sin gluten"],
     allergens: ["lácteos"],
     imageUrl: "",
+    stockStatus: "available",
   },
   {
     id: "carpaccio",
@@ -61,6 +62,7 @@ export const MENU: MenuItem[] = [
     kcal: 290,
     tags: ["sin gluten"],
     allergens: ["lácteos", "mostaza"],
+    stockStatus: "available",
   },
   {
     id: "arancini",
@@ -73,6 +75,7 @@ export const MENU: MenuItem[] = [
     kcal: 420,
     tags: ["vegetariano"],
     allergens: ["gluten", "lácteos", "huevo"],
+    stockStatus: "available",
   },
   {
     id: "tagliatelle",
@@ -85,6 +88,7 @@ export const MENU: MenuItem[] = [
     kcal: 680,
     tags: ["bestseller"],
     allergens: ["gluten", "lácteos", "huevo"],
+    stockStatus: "available",
     winePair: "Barolo DOCG 2019",
   },
   {
@@ -98,6 +102,7 @@ export const MENU: MenuItem[] = [
     kcal: 590,
     tags: ["vegetariano"],
     allergens: ["lácteos"],
+    stockStatus: "available",
     winePair: "Brunello di Montalcino 2018",
   },
   {
@@ -111,6 +116,7 @@ export const MENU: MenuItem[] = [
     kcal: 420,
     tags: ["sin gluten", "ligero"],
     allergens: ["pescado"],
+    stockStatus: "available",
     winePair: "Vermentino Sardegna 2023",
   },
   {
@@ -124,6 +130,7 @@ export const MENU: MenuItem[] = [
     kcal: 780,
     tags: ["especialidad"],
     allergens: ["gluten", "lácteos"],
+    stockStatus: "available",
     winePair: "Amarone della Valpolicella 2017",
   },
   {
@@ -137,6 +144,7 @@ export const MENU: MenuItem[] = [
     kcal: 480,
     tags: ["clásico"],
     allergens: ["gluten", "lácteos", "huevo"],
+    stockStatus: "available",
   },
   {
     id: "panna",
@@ -149,6 +157,7 @@ export const MENU: MenuItem[] = [
     kcal: 320,
     tags: ["sin gluten", "vegetariano"],
     allergens: ["lácteos"],
+    stockStatus: "available",
   },
   {
     id: "spritz",
@@ -161,6 +170,7 @@ export const MENU: MenuItem[] = [
     kcal: 190,
     tags: ["aperitivo"],
     allergens: ["sulfitos"],
+    stockStatus: "available",
   },
   {
     id: "vino",
@@ -173,6 +183,7 @@ export const MENU: MenuItem[] = [
     kcal: 120,
     tags: [],
     allergens: ["sulfitos"],
+    stockStatus: "available",
   },
   {
     id: "agua",
@@ -185,6 +196,7 @@ export const MENU: MenuItem[] = [
     kcal: 0,
     tags: ["sin gluten", "sin alcohol"],
     allergens: [],
+    stockStatus: "available",
   },
 ];
 
