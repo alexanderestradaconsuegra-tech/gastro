@@ -57,6 +57,7 @@ export interface BackofficeState {
   updateInventoryStock: (itemId: string, qty: number) => void;
   toggleQr: (tableId: number) => void;
   regenerateQr: (tableId: number) => void;
+  saveStaffAvatar: (staffId: string, url: string) => void;
 }
 
 function randomToken() {
@@ -68,7 +69,7 @@ export function useBackofficeState(): BackofficeState {
   const [calls, setCalls] = useState<Call[]>(INITIAL_CALLS);
   const [messages, setMessages] = useState<Message[]>(INITIAL_MESSAGES);
   const [tables, setTables] = useState<Table[]>(INITIAL_TABLES);
-  const [staff] = useState<StaffMember[]>(INITIAL_STAFF);
+  const [staff, setStaff] = useState<StaffMember[]>(INITIAL_STAFF);
   const [cashSession, setCashSession] = useState<CashSession>(INITIAL_CASH_SESSION);
   const [inventory, setInventory] = useState<InventoryItem[]>(INITIAL_INVENTORY);
   const [menuItems, setMenuItems] = useState<MenuItem[]>(INITIAL_MENU_ITEMS);
@@ -347,6 +348,14 @@ export function useBackofficeState(): BackofficeState {
     supabase.from("tables").update({ qr_token: token }).eq("id", tableId);
   }, []);
 
+  const saveStaffAvatar = useCallback((staffId: string, url: string) => {
+    setStaff((prev) =>
+      prev.map((s) => (s.id === staffId ? { ...s, avatarUrl: url } : s))
+    );
+    if (!supabaseAvailable.current) return;
+    supabase.from("staff").update({ avatar_url: url }).eq("id", staffId);
+  }, []);
+
   return {
     orders,
     calls,
@@ -375,6 +384,7 @@ export function useBackofficeState(): BackofficeState {
     changeTurn,
     addExpense,
     updateInventoryStock,
+    saveStaffAvatar,
     toggleQr,
     regenerateQr,
   };

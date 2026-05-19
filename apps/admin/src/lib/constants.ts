@@ -47,6 +47,7 @@ export interface StaffMember {
   tables: number[];
   phone: string;
   email: string;
+  avatarUrl?: string;
 }
 
 export interface Call {

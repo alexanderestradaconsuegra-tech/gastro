@@ -16,6 +16,7 @@ import {
   WEBHOOKS,
 } from "@/lib/constants";
 import type { StaffProfile } from "@/hooks/useAuth";
+import { uploadMenuImage, uploadStaffAvatar } from "@/lib/storage";
 
 const COCINA_TABS = ["dashboard", "kitchen", "orders"] as const;
 const CAJA_TABS   = ["dashboard", "tables", "orders", "sales", "reviews"] as const;
@@ -1068,13 +1069,14 @@ function TabSales({
 
 // ─── Staff ───────────────────────────────────────────────────────────────────
 
-function TabStaff({ staff, tables }: ReturnType<typeof useBackofficeState>) {
+function TabStaff({ staff, tables, saveStaffAvatar }: ReturnType<typeof useBackofficeState> & { saveStaffAvatar?: (id: string, url: string) => void }) {
   const ROLE_COLORS: Record<string, string> = {
     admin: "var(--gold)",
     camarero: "var(--blue)",
     cocina: "var(--orange)",
     caja: "var(--purple)",
   };
+  const [uploadingId, setUploadingId] = useState<string | null>(null);
 
   return (
     <div style={{ padding: 28 }}>
@@ -1085,23 +1087,50 @@ function TabStaff({ staff, tables }: ReturnType<typeof useBackofficeState>) {
           return (
             <div key={s.id} style={S.panel}>
               <div style={{ display: "flex", gap: 14, alignItems: "flex-start", marginBottom: 14 }}>
-                <div
-                  style={{
-                    width: 44,
-                    height: 44,
-                    borderRadius: "50%",
-                    background: ROLE_COLORS[s.role] + "33",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    color: ROLE_COLORS[s.role],
-                    fontWeight: 700,
-                    fontSize: 16,
-                    flexShrink: 0,
-                  }}
-                >
-                  {s.name[0]}
-                </div>
+                <label style={{ position: "relative", cursor: "pointer", flexShrink: 0 }} title="Cambiar foto">
+                  {s.avatarUrl ? (
+                    <img
+                      src={s.avatarUrl}
+                      alt={s.name}
+                      style={{ width: 52, height: 52, borderRadius: "50%", objectFit: "cover", border: `2px solid ${ROLE_COLORS[s.role]}` }}
+                    />
+                  ) : (
+                    <div
+                      style={{
+                        width: 52,
+                        height: 52,
+                        borderRadius: "50%",
+                        background: ROLE_COLORS[s.role] + "33",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        color: ROLE_COLORS[s.role],
+                        fontWeight: 700,
+                        fontSize: 18,
+                        border: `2px solid ${ROLE_COLORS[s.role]}55`,
+                      }}
+                    >
+                      {s.name[0]}
+                    </div>
+                  )}
+                  {uploadingId === s.id && (
+                    <div style={{ position: "absolute", inset: 0, borderRadius: "50%", background: "rgba(0,0,0,.5)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, color: "#fff" }}>…</div>
+                  )}
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    style={{ display: "none" }}
+                    disabled={!!uploadingId}
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      setUploadingId(s.id);
+                      const url = await uploadStaffAvatar(file, s.id);
+                      if (url && saveStaffAvatar) saveStaffAvatar(s.id, url);
+                      setUploadingId(null);
+                    }}
+                  />
+                </label>
                 <div>
                   <div style={{ fontWeight: 600, fontSize: 15 }}>{s.name}</div>
                   <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
@@ -1311,6 +1340,7 @@ function TabMenu({
 }: ReturnType<typeof useBackofficeState>) {
   const [editing, setEditing] = useState<MenuItem | null>(null);
   const [form, setForm] = useState<MenuItem>(EMPTY_ITEM);
+  const [uploading, setUploading] = useState(false);
 
   const categories = [...new Set(menuItems.map((m) => m.category))];
   const [cat, setCat] = useState("Todos");
@@ -1372,6 +1402,17 @@ function TabMenu({
               opacity: item.available ? 1 : 0.5,
             }}
           >
+            {item.imageUrl ? (
+              <img
+                src={item.imageUrl}
+                alt={item.name}
+                style={{ width: 52, height: 52, objectFit: "cover", borderRadius: 8, flexShrink: 0 }}
+              />
+            ) : (
+              <div style={{ width: 52, height: 52, borderRadius: 8, background: "var(--panel2)", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22 }}>
+                🍽
+              </div>
+            )}
             <div style={{ flex: 1 }}>
               <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                 <span style={{ fontWeight: 600 }}>{item.name}</span>
@@ -1453,7 +1494,6 @@ function TabMenu({
                 { key: "avgPrepMinutes", label: "Prep (min)", type: "number" },
                 { key: "kcal", label: "Kcal", type: "number" },
                 { key: "winePair", label: "Maridaje", type: "text" },
-                { key: "imageUrl", label: "URL imagen", type: "text" },
               ].map(({ key, label, type }) => (
                 <div key={key}>
                   <div style={{ color: "var(--muted)", fontSize: 11, marginBottom: 4 }}>{label}</div>
@@ -1470,6 +1510,52 @@ function TabMenu({
                   />
                 </div>
               ))}
+            </div>
+
+            {/* Foto del plato */}
+            <div style={{ marginTop: 12 }}>
+              <div style={{ color: "var(--muted)", fontSize: 11, marginBottom: 6 }}>Foto del plato</div>
+              <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+                {form.imageUrl && (
+                  <img
+                    src={form.imageUrl}
+                    alt=""
+                    style={{ width: 72, height: 72, objectFit: "cover", borderRadius: 8, border: "1px solid var(--line)" }}
+                  />
+                )}
+                <label
+                  style={{
+                    ...S.btn,
+                    cursor: uploading ? "wait" : "pointer",
+                    opacity: uploading ? 0.6 : 1,
+                    display: "inline-block",
+                  }}
+                >
+                  {uploading ? "Subiendo…" : form.imageUrl ? "Cambiar foto" : "Subir foto"}
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    style={{ display: "none" }}
+                    disabled={uploading}
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      setUploading(true);
+                      const url = await uploadMenuImage(file, form.id);
+                      if (url) setForm((prev) => ({ ...prev, imageUrl: url }));
+                      setUploading(false);
+                    }}
+                  />
+                </label>
+                {form.imageUrl && (
+                  <button
+                    style={{ ...S.btn, color: "var(--red)", fontSize: 12 }}
+                    onClick={() => setForm((prev) => ({ ...prev, imageUrl: "" }))}
+                  >
+                    Quitar
+                  </button>
+                )}
+              </div>
             </div>
             <div style={{ marginTop: 12 }}>
               <div style={{ color: "var(--muted)", fontSize: 11, marginBottom: 4 }}>Descripción</div>
@@ -1726,7 +1812,7 @@ export default function GastroAdmin({ authStaff, onSignOut }: GastroAdminProps) 
       case "calls": return <TabCalls {...state} />;
       case "messages": return <TabMessages {...state} />;
       case "sales": return <TabSales {...state} />;
-      case "staff": return <TabStaff {...state} />;
+      case "staff": return <TabStaff {...state} saveStaffAvatar={state.saveStaffAvatar} />;
       case "inventory": return <TabInventory {...state} />;
       case "qr": return <TabQR {...state} />;
       case "menu": return <TabMenu {...state} />;
