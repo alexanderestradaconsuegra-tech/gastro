@@ -11,9 +11,21 @@ import {
   PRIORITY_COLORS,
   STATUS_COLORS,
   StaffMember,
+  StaffRole,
   TabId,
   WEBHOOKS,
 } from "@/lib/constants";
+import type { StaffProfile } from "@/hooks/useAuth";
+
+const COCINA_TABS = ["dashboard", "kitchen", "orders"] as const;
+const CAJA_TABS   = ["dashboard", "tables", "orders", "sales", "reviews"] as const;
+
+function tabsForRole(role: StaffRole): TabId[] {
+  if (role === "admin")    return ADMIN_TABS.map((t) => t.id);
+  if (role === "cocina")   return [...COCINA_TABS] as TabId[];
+  if (role === "caja")     return [...CAJA_TABS] as TabId[];
+  return [...CAMARERO_TABS] as TabId[];
+}
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
@@ -136,24 +148,20 @@ const S = {
 function Sidebar({
   activeTab,
   setTab,
-  role,
   staffMember,
-  staffList,
-  onRoleSwitch,
   demoMode,
   setDemoMode,
+  onSignOut,
 }: {
   activeTab: TabId;
   setTab: (t: TabId) => void;
-  role: "admin" | "camarero";
   staffMember: StaffMember;
-  staffList: StaffMember[];
-  onRoleSwitch: (s: StaffMember) => void;
   demoMode: boolean;
   setDemoMode: (v: boolean) => void;
+  onSignOut?: () => void;
 }) {
   const tabs = ADMIN_TABS.filter((t) =>
-    role === "admin" ? true : CAMARERO_TABS.includes(t.id as (typeof CAMARERO_TABS)[number])
+    tabsForRole(staffMember.role).includes(t.id)
   );
 
   return (
@@ -166,35 +174,37 @@ function Sidebar({
       </div>
 
       <div style={{ padding: "10px 12px", borderBottom: "1px solid var(--line)" }}>
-        <select
-          style={{
-            ...S.input,
-            padding: "6px 8px",
-            fontSize: 12,
-            cursor: "pointer",
-          }}
-          value={staffMember.id}
-          onChange={(e) => {
-            const s = staffList.find((x) => x.id === e.target.value);
-            if (s) onRoleSwitch(s);
-          }}
-        >
-          {staffList.map((s) => (
-            <option key={s.id} value={s.id}>
-              {s.name} ({s.role})
-            </option>
-          ))}
-        </select>
-        <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8 }}>
-          <div
-            style={{
-              width: 7,
-              height: 7,
-              borderRadius: "50%",
-              background: staffMember.status === "Activo" ? "var(--green)" : "var(--amber)",
-            }}
-          />
-          <span style={{ color: "var(--muted)", fontSize: 11 }}>{staffMember.status}</span>
+        <div style={{ fontSize: 13, color: "var(--text)", fontWeight: 500, marginBottom: 2 }}>
+          {staffMember.name}
+        </div>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <div
+              style={{
+                width: 7,
+                height: 7,
+                borderRadius: "50%",
+                background: "var(--green)",
+              }}
+            />
+            <span style={{ color: "var(--muted)", fontSize: 11 }}>{staffMember.role}</span>
+          </div>
+          {onSignOut && (
+            <button
+              onClick={onSignOut}
+              style={{
+                background: "none",
+                border: "none",
+                color: "var(--dim)",
+                fontSize: 11,
+                cursor: "pointer",
+                padding: "2px 4px",
+              }}
+              title="Cerrar sesión"
+            >
+              ⏻
+            </button>
+          )}
         </div>
       </div>
 
@@ -236,7 +246,7 @@ function Sidebar({
             marginBottom: 4,
           }}
         >
-          <span style={{ color: "var(--muted)", fontSize: 11 }}>Modo demo</span>
+          <span style={{ color: "var(--muted)", fontSize: 11 }}>Datos demo</span>
           <button
             onClick={() => setDemoMode(!demoMode)}
             style={{
@@ -1682,24 +1692,30 @@ function TabSettings() {
 
 // ─── GastroAdmin (root) ───────────────────────────────────────────────────────
 
-export default function GastroAdmin() {
+interface GastroAdminProps {
+  authStaff?: StaffProfile;
+  onSignOut?: () => void;
+}
+
+export default function GastroAdmin({ authStaff, onSignOut }: GastroAdminProps) {
   const state = useBackofficeState();
   const { staff, demoMode, setDemoMode } = state;
 
+  const initialStaff: StaffMember = authStaff
+    ? (staff.find((s) => s.email === authStaff.email) ?? {
+        id: authStaff.id,
+        name: authStaff.name,
+        email: authStaff.email,
+        role: authStaff.role as StaffRole,
+        shift: authStaff.shift,
+        status: "Activo",
+        tables: [],
+        phone: authStaff.phone,
+      })
+    : staff[3];
+
   const [activeTab, setActiveTab] = useState<TabId>("dashboard");
-  const [currentStaff, setCurrentStaff] = useState<StaffMember>(staff[3]);
-
-  const role = currentStaff.role === "admin" ? "admin" : "camarero";
-
-  const handleStaffSwitch = (s: StaffMember) => {
-    setCurrentStaff(s);
-    const tabsForRole = s.role === "admin"
-      ? ADMIN_TABS.map((t) => t.id)
-      : [...CAMARERO_TABS];
-    if (!tabsForRole.includes(activeTab)) {
-      setActiveTab("dashboard");
-    }
-  };
+  const [currentStaff] = useState<StaffMember>(initialStaff);
 
   function renderTab() {
     switch (activeTab) {
@@ -1744,12 +1760,10 @@ export default function GastroAdmin() {
       <Sidebar
         activeTab={activeTab}
         setTab={setActiveTab}
-        role={role}
         staffMember={currentStaff}
-        staffList={staff}
-        onRoleSwitch={handleStaffSwitch}
         demoMode={demoMode}
         setDemoMode={setDemoMode}
+        onSignOut={onSignOut}
       />
       <main style={S.main}>{renderTab()}</main>
     </div>
