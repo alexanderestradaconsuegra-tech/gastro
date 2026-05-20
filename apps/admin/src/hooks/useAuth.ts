@@ -57,6 +57,8 @@ export function useAuth() {
       } else {
         setState({ session: null, staff: null, loading: false, error: null });
       }
+    }).catch(() => {
+      setState({ session: null, staff: null, loading: false, error: null });
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
