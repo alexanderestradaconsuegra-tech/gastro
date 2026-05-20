@@ -50,7 +50,12 @@ export function useAuth() {
   }, []);
 
   useEffect(() => {
+    const timeout = setTimeout(() => {
+      setState({ session: null, staff: null, loading: false, error: null });
+    }, 3000);
+
     supabase.auth.getSession().then(async ({ data: { session } }) => {
+      clearTimeout(timeout);
       if (session?.user?.email) {
         const staff = await fetchStaffProfile(session.user.email);
         setState({ session, staff, loading: false, error: null });
@@ -58,6 +63,7 @@ export function useAuth() {
         setState({ session: null, staff: null, loading: false, error: null });
       }
     }).catch(() => {
+      clearTimeout(timeout);
       setState({ session: null, staff: null, loading: false, error: null });
     });
 
