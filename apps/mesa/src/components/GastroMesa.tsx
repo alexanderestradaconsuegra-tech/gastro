@@ -1,1178 +1,681 @@
 "use client";
 
-import { useState, useCallback, useRef, useEffect } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTableSession } from "@/hooks/useTableSession";
-import {
-  CATEGORIES,
-  PROMOS,
-  KITCHEN_STEPS,
-  WAITER_REASONS,
-  AI_QUICK_QUESTIONS,
-  RESTAURANT_NAME,
-  money,
-  statusIndex,
-  type MenuItem,
-  type KitchenStatus,
-} from "@/lib/constants";
 import type { CartItem, Order, TableContext } from "@/hooks/useTableSession";
+import type { MenuItem } from "@/lib/constants";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
 type Tab = "home" | "menu" | "order" | "waiter" | "bill" | "feedback" | "ai";
 
-interface AiMessage {
-  role: "user" | "assistant";
-  text: string;
+// ── Constants ────────────────────────────────────────────────────────────────
+
+const RESTAURANT = {
+  name: "NIDO",
+  concept: "Cocina italiana de autor",
+  city: "Santiago",
+  googleReviewUrl: "https://g.page/r/CODIGO-DE-RESTAURANTE/review",
+};
+
+const PROMOS = [
+  { eyebrow: "LUN–VIE", title: "Menú del Día", body: "Entrada + principal + postre + bebida", price: "$32.000" },
+  { eyebrow: "18–20 H", title: "Aperitivo", body: "Spritz y cócteles seleccionados", price: "2×1" },
+  { eyebrow: "CHEF", title: "Maridaje", body: "3 copas recomendadas por plato", price: "$18.900" },
+];
+
+const KITCHEN_STEPS = [
+  { key: "received", label: "Recibido" },
+  { key: "prep", label: "Preparando" },
+  { key: "plating", label: "Emplatando" },
+  { key: "served", label: "Servido" },
+];
+
+const WAITER_REASONS = [
+  "Tomar pedido presencial",
+  "Más agua",
+  "Más servilletas",
+  "Retirar platos",
+  "Tengo una alergia",
+  "Urgente en mesa",
+];
+
+const photos: Record<string, string> = {
+  burrata: "https://images.unsplash.com/photo-1608897013039-887f21d8c804?q=80&w=600&auto=format&fit=crop",
+  carpaccio: "https://images.unsplash.com/photo-1546833999-b9f581a1996d?q=80&w=600&auto=format&fit=crop",
+  arancini: "https://images.unsplash.com/photo-1621996346565-e3dbc646d9a9?q=80&w=600&auto=format&fit=crop",
+  tagliatelle: "https://images.unsplash.com/photo-1551183053-bf91a1d81141?q=80&w=600&auto=format&fit=crop",
+  branzino: "https://images.unsplash.com/photo-1535400255456-984241443b29?q=80&w=600&auto=format&fit=crop",
+  ossobuco: "https://images.unsplash.com/photo-1504674900247-0877df9cc836?q=80&w=600&auto=format&fit=crop",
+  risotto: "https://images.unsplash.com/photo-1476124369491-e7addf5db371?q=80&w=600&auto=format&fit=crop",
+  tiramisu: "https://images.unsplash.com/photo-1571877227200-a0d98ea607e9?q=80&w=600&auto=format&fit=crop",
+  panna: "https://images.unsplash.com/photo-1488477181946-6428a0291777?q=80&w=600&auto=format&fit=crop",
+  spritz: "https://images.unsplash.com/photo-1551024709-8f23befc6f87?q=80&w=600&auto=format&fit=crop",
+  vino: "https://images.unsplash.com/photo-1510812431401-41d2bd2722f3?q=80&w=600&auto=format&fit=crop",
+  agua: "https://images.unsplash.com/photo-1523362628745-0c100150b504?q=80&w=600&auto=format&fit=crop",
+};
+
+const icons = {
+  home: <svg viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5V21a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1Z" /></svg>,
+  menu: <svg viewBox="0 0 24 24"><path d="M4 5h16M4 12h16M4 19h16" /></svg>,
+  order: <svg viewBox="0 0 24 24"><path d="M7 4h10l1 18-6-3-6 3Z" /></svg>,
+  bell: <svg viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 8-3 8h18s-3-1-3-8M10 21h4" /></svg>,
+  bill: <svg viewBox="0 0 24 24"><path d="M6 2h12v20l-3-2-3 2-3-2-3 2ZM9 7h6M9 11h6M9 15h4" /></svg>,
+  spark: <svg viewBox="0 0 24 24"><path d="M12 2l2.6 6.8L22 12l-7.4 3.2L12 22l-2.6-6.8L2 12l7.4-3.2Z" /></svg>,
+  plus: <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" /></svg>,
+  minus: <svg viewBox="0 0 24 24"><path d="M5 12h14" /></svg>,
+  x: <svg viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12" /></svg>,
+  send: <svg viewBox="0 0 24 24"><path d="m22 2-7 20-4-9-9-4Z" /></svg>,
+  search: <svg viewBox="0 0 24 24"><path d="m21 21-4.3-4.3M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15Z" /></svg>,
+  star: <svg viewBox="0 0 24 24"><path d="m12 2 3.1 6.3 6.9 1-5 4.9 1.2 6.8L12 17.8 5.8 21 7 14.2 2 9.3l6.9-1Z" /></svg>,
+};
+
+// ── CSS ───────────────────────────────────────────────────────────────────────
+
+const CSS = `
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700;800&family=Inter:wght@400;500;600;700;800&display=swap');
+:root{--bg:#080705;--panel:#15120f;--panel2:#201a15;--line:rgba(255,255,255,.09);--text:#fff7ed;--muted:#bfae9d;--dim:#776a5d;--gold:#d9a441;--gold2:#f7d37b;--red:#ef4444;--green:#34d399;--r:22px;--shadow:0 26px 70px rgba(0,0,0,.45)}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at 20% -10%,rgba(217,164,65,.22),transparent 32%),radial-gradient(circle at 110% 15%,rgba(126,58,242,.18),transparent 32%),#060504;color:var(--text);font-family:Inter,system-ui,sans-serif;overscroll-behavior:none}.app{max-width:430px;margin:0 auto;min-height:100dvh;position:relative;background:linear-gradient(180deg,rgba(255,255,255,.025),rgba(255,255,255,.01));box-shadow:0 0 0 1px rgba(255,255,255,.05),0 40px 110px rgba(0,0,0,.75);overflow:hidden}.screen{min-height:100dvh;padding:16px 16px 110px;overflow:auto}.fade{animation:fade .24s ease both}@keyframes fade{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}.glass{background:linear-gradient(145deg,rgba(255,255,255,.075),rgba(255,255,255,.025));border:1px solid var(--line);box-shadow:var(--shadow);backdrop-filter:blur(18px)}.hero{min-height:360px;border-radius:30px;overflow:hidden;position:relative;padding:22px;display:flex;flex-direction:column;justify-content:space-between;background:linear-gradient(180deg,rgba(0,0,0,.08),rgba(0,0,0,.72)),url('https://images.unsplash.com/photo-1514933651103-005eec06c04b?q=80&w=1400&auto=format&fit=crop') center/cover}.topbar{position:relative;z-index:1;display:flex;justify-content:space-between;align-items:center}.brand{font-family:'Playfair Display',serif;text-align:center;letter-spacing:.16em;color:var(--gold2);font-size:25px;line-height:.8}.brand small{display:block;font-family:Inter;font-size:8px;letter-spacing:.55em;color:#e9d2a0;margin-top:8px}.pill{border:1px solid rgba(255,255,255,.18);background:rgba(0,0,0,.28);padding:9px 13px;border-radius:999px;color:#fff;font-weight:700;font-size:12px}.hero-copy{position:relative;z-index:1}.eyebrow{color:var(--gold2);font-weight:700;font-size:13px}.hero h1{font-family:'Playfair Display',serif;font-size:46px;line-height:.95;margin:10px 0 12px;letter-spacing:-.05em}.hero p{color:#e7dbce;margin:0;font-size:14px}.action-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:14px}.action{border:1px solid var(--line);background:linear-gradient(145deg,rgba(255,255,255,.08),rgba(255,255,255,.035));border-radius:19px;min-height:104px;padding:16px;text-align:left;color:var(--text);cursor:pointer;transition:.18s transform,.18s border-color}.action:active{transform:scale(.98);border-color:rgba(217,164,65,.55)}.action svg,.nav svg,.icon svg,.btn svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}.action svg{color:var(--gold2)}.action h3{margin:13px 0 5px;font-size:15px}.action p{margin:0;color:var(--muted);font-size:12px;line-height:1.45}.promo-row{display:grid;grid-template-columns:1fr;gap:10px;margin:16px 0 0}.promo{border-radius:20px;padding:14px 15px;display:grid;grid-template-columns:1fr auto;gap:4px 10px;align-items:center}.promo b{grid-column:1/-1;color:var(--gold2);font-size:10px;letter-spacing:.12em}.promo h3{margin:0;font-size:15px}.promo p{margin:0;color:var(--muted);font-size:12px;line-height:1.35}.promo strong{display:block;margin:0;color:var(--gold2);font-size:20px;justify-self:end}.header{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px}.header-title{font-family:'Playfair Display',serif;font-size:23px}.icon{width:42px;height:42px;border-radius:16px;border:1px solid var(--line);background:rgba(255,255,255,.05);color:var(--text);display:grid;place-items:center}.section-title{display:flex;justify-content:space-between;align-items:end;margin:6px 2px 14px}.section-title h2{font-family:'Playfair Display',serif;font-size:31px;margin:0;letter-spacing:-.04em}.section-title span{color:var(--muted);font-size:12px}.searchbar{display:flex;gap:10px;align-items:center;margin-bottom:12px}.searchbox{flex:1;border:0;background:rgba(255,255,255,.06);border-radius:16px;padding:14px;color:white;outline:none}.cat-row{display:flex;gap:9px;overflow:auto;margin:0 -16px 14px;padding:0 16px}.cat-row::-webkit-scrollbar{display:none}.cat{white-space:nowrap;border:1px solid var(--line);background:rgba(255,255,255,.05);color:var(--muted);border-radius:999px;padding:10px 14px;font-weight:800;font-size:12px}.cat.on{background:linear-gradient(135deg,var(--gold),var(--gold2));color:#161006;border-color:transparent}.dish-list{display:flex;flex-direction:column;gap:12px}.dish{display:grid;grid-template-columns:88px 1fr auto;gap:12px;align-items:center;border-radius:20px;padding:10px}.photo{width:88px;height:88px;border-radius:16px;background-size:cover;background-position:center;background-image:linear-gradient(135deg,#3a2418,#0f0d0b)}.dish h3{margin:0;font-size:15px}.dish p{margin:5px 0 8px;color:var(--muted);font-size:12px;line-height:1.35}.tags{display:flex;gap:5px;flex-wrap:wrap}.tag{font-size:9px;font-weight:900;color:#201405;background:rgba(247,211,123,.92);border-radius:999px;padding:4px 7px}.price{color:var(--gold2);font-weight:900}.add{width:38px;height:38px;border-radius:14px;border:1px solid rgba(217,164,65,.5);background:rgba(217,164,65,.08);color:var(--gold2);display:grid;place-items:center}.floating-cart{position:fixed;left:16px;right:16px;bottom:84px;max-width:398px;margin:auto;z-index:25;border-radius:20px;background:linear-gradient(135deg,var(--gold),var(--gold2));color:#171006;border:0;padding:16px 18px;display:flex;justify-content:space-between;align-items:center;font-weight:900;box-shadow:0 18px 40px rgba(217,164,65,.28)}.nav{position:fixed;left:50%;bottom:0;transform:translateX(-50%);width:100%;max-width:430px;height:76px;background:rgba(7,6,5,.88);backdrop-filter:blur(22px);border-top:1px solid var(--line);display:grid;grid-template-columns:repeat(5,1fr);z-index:40;padding-bottom:env(safe-area-inset-bottom)}.nav button{position:relative;border:0;background:transparent;color:var(--dim);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;font-size:10px;font-weight:800}.nav button.on{color:var(--gold2)}.nav svg{width:20px;height:20px}.cart-badge{position:absolute;top:6px;right:22px;background:var(--red);color:white;border-radius:999px;font-size:10px;padding:2px 6px}.drawer{position:fixed;left:50%;bottom:0;transform:translate(-50%,105%);width:100%;max-width:430px;max-height:82dvh;z-index:60;background:rgba(15,12,9,.96);border:1px solid var(--line);border-radius:28px 28px 0 0;padding:18px;transition:.28s cubic-bezier(.2,.8,.2,1);box-shadow:0 -30px 80px rgba(0,0,0,.68);overflow:auto}.drawer.open{transform:translate(-50%,0)}.drawer-head{display:flex;align-items:center;justify-content:space-between}.drawer h2{font-family:'Playfair Display',serif;font-size:30px;margin:0}.cart-list{display:flex;flex-direction:column;gap:10px;margin:12px 0}.cart-item{display:flex;justify-content:space-between;align-items:center;border-radius:16px;background:rgba(255,255,255,.05);padding:12px}.cart-item h4{margin:0}.cart-item small{color:var(--muted)}.qty{display:flex;align-items:center;gap:10px}.qty button{width:32px;height:32px;border-radius:12px;border:1px solid var(--line);background:rgba(255,255,255,.06);color:white;display:grid;place-items:center}.qty svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2}.total-row{display:flex;justify-content:space-between;color:var(--muted);margin:10px 0}.total-row.strong{color:white;font-size:20px}.btn{border:0;border-radius:18px;padding:15px 18px;font-weight:900;cursor:pointer}.btn.primary{background:linear-gradient(135deg,var(--gold),var(--gold2));color:#171006}.btn.ghost{background:rgba(255,255,255,.06);border:1px solid var(--line);color:var(--text)}.empty{color:var(--muted);text-align:center;padding:24px}.status-card{border-radius:24px;padding:18px;margin-bottom:14px}.status-head{display:flex;justify-content:space-between;align-items:center}.status-head h3{margin:0}.status-head small{color:var(--muted)}.eta{background:rgba(52,211,153,.13);color:var(--green);padding:8px 12px;border-radius:999px;font-weight:900}.steps{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;margin:18px 0}.step{height:7px;border-radius:999px;background:rgba(255,255,255,.12)}.step.on{background:linear-gradient(90deg,var(--gold),var(--gold2))}.order-lines{color:var(--muted);font-size:13px;line-height:1.9}.waiter-hero{border-radius:28px;padding:26px;text-align:center}.bell-big{width:148px;height:148px;border-radius:50%;border:1px solid rgba(217,164,65,.4);background:radial-gradient(circle,rgba(217,164,65,.22),rgba(255,255,255,.03));color:var(--gold2);display:grid;place-items:center;margin:24px auto;position:relative}.bell-big svg{width:58px;height:58px;fill:none;stroke:currentColor;stroke-width:1.8}.bell-big.active{animation:pulse 1.2s infinite}@keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(217,164,65,.28)}50%{box-shadow:0 0 0 20px rgba(217,164,65,0)}}.quick-list{display:grid;gap:10px;margin-top:14px}.quick{border:1px solid var(--line);background:rgba(255,255,255,.06);color:var(--text);border-radius:17px;padding:15px;display:flex;justify-content:space-between;font-weight:800}.bill-card,.review-card{border-radius:26px;padding:18px}.bill-line{display:flex;justify-content:space-between;padding:13px 0;border-bottom:1px solid var(--line)}.bill-line small{display:block;color:var(--muted);margin-top:4px}.chat{height:100dvh;padding:16px 14px 0;display:flex;flex-direction:column}.messages{flex:1;overflow:auto;padding:8px 2px 12px;display:flex;flex-direction:column;gap:10px}.msg{max-width:82%;border-radius:18px;padding:12px 14px;font-size:13px;line-height:1.55}.msg.ai{align-self:flex-start;background:rgba(255,255,255,.07);border:1px solid var(--line);border-bottom-left-radius:4px}.msg.user{align-self:flex-end;background:linear-gradient(135deg,var(--gold),var(--gold2));color:#171006;border-bottom-right-radius:4px}.chips{display:flex;gap:8px;overflow:auto;padding:0 0 10px}.chips button{white-space:nowrap;border:1px solid var(--line);background:rgba(255,255,255,.06);color:var(--muted);border-radius:999px;padding:9px 12px;font-weight:700}.composer{display:flex;gap:9px;padding:10px 0 88px;border-top:1px solid var(--line)}.composer textarea{flex:1;border:0;outline:none;resize:none;border-radius:18px;padding:14px;background:rgba(255,255,255,.07);color:white}.composer button{width:48px;height:48px;border-radius:18px;border:0;background:linear-gradient(135deg,var(--gold),var(--gold2));color:#171006;display:grid;place-items:center}.stars{display:flex;justify-content:center;gap:6px;margin:16px 0}.star-btn{width:44px;height:44px;border-radius:16px;border:1px solid var(--line);background:rgba(255,255,255,.06);color:var(--gold2);display:grid;place-items:center}.star-btn.on{background:linear-gradient(135deg,var(--gold),var(--gold2));color:#171006}.star-btn svg{width:22px;height:22px;fill:currentColor;stroke:currentColor}@media(min-width:760px){body{padding:22px}.app{border-radius:34px;min-height:calc(100dvh - 44px);height:880px}.screen,.chat{min-height:unset;height:880px}.nav{bottom:22px;border-radius:0 0 34px 34px}}
+`;
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+const money = (n: number) => `$${Number(n || 0).toLocaleString("es-CL")}`;
+
+function statusIndex(status: string): number {
+  return Math.max(0, KITCHEN_STEPS.findIndex((s) => s.key === status));
 }
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
-
-function cartTotal(cart: CartItem[]): number {
-  return cart.reduce((s, c) => s + c.item.price * c.qty, 0);
-}
-
-function cartCount(cart: CartItem[]): number {
+function getCartCount(cart: CartItem[]): number {
   return cart.reduce((s, c) => s + c.qty, 0);
 }
 
-function ordersTotal(orders: Order[]): number {
-  return orders.reduce((s, o) => s + o.total, 0);
+function dishPhoto(item: MenuItem): string {
+  return photos[item.id] || item.imageUrl || "";
 }
 
-// ── AI response generator (local, no LLM call) ───────────────────────────────
+// ── Header ────────────────────────────────────────────────────────────────────
 
-function aiReply(question: string, menuItems: MenuItem[]): string {
-  const q = question.toLowerCase();
-  if (q.includes("gluten")) {
-    const sf = menuItems.filter((m) => m.tags.includes("sin gluten"));
-    return sf.length
-      ? `Sin gluten: ${sf.map((m) => m.name).join(", ")}.`
-      : "No tenemos platos sin gluten identificados actualmente.";
-  }
-  if (q.includes("vegetariano")) {
-    const veg = menuItems.filter((m) => m.tags.includes("vegetariano"));
-    return veg.length
-      ? `Opciones vegetarianas: ${veg.map((m) => m.name).join(", ")}.`
-      : "No hay opciones vegetarianas identificadas hoy.";
-  }
-  if (q.includes("ossobuco")) {
-    const item = menuItems.find((m) => m.id === "ossobuco");
-    return item
-      ? `${item.name}: ${item.description} Alérgenos: ${item.allergens.join(", ")}.`
-      : "El Ossobuco no está disponible hoy.";
-  }
-  if (q.includes("pasta") || q.includes("tarda")) {
-    const pasta = menuItems.filter((m) => m.category === "Pasta");
-    return pasta.length
-      ? `La pasta tarda entre ${Math.min(...pasta.map((m) => m.avgPrepMinutes))}–${Math.max(...pasta.map((m) => m.avgPrepMinutes))} minutos.`
-      : "Los tiempos de pasta varían. Pregunta a tu camarero.";
-  }
-  if (q.includes("vino") || q.includes("recomiend")) {
-    const pairs = menuItems.filter((m) => m.winePair);
-    return pairs.length
-      ? `Maridajes del chef: ${pairs.map((m) => `${m.name} → ${m.winePair}`).join("; ")}.`
-      : "Consulta con nuestro sommelier para recomendaciones de vino.";
-  }
-  if (q.includes("camarero") || q.includes("llama")) {
-    return "Para llamar al camarero ve a la pestaña 🔔 Camarero en el menú inferior.";
-  }
-  if (q.includes("pagar") || q.includes("cuenta")) {
-    return "Para solicitar la cuenta ve a la pestaña 💳 Cuenta en el menú inferior.";
-  }
-  if (q.includes("alergi")) {
-    return "Los alérgenos están indicados en cada plato. Si tienes dudas avisa a tu camarero antes de pedir.";
-  }
-  return "No tengo esa información. Puedo ayudarte con el menú, alérgenos, tiempos de cocina o llamar al camarero.";
-}
-
-// ── Sub-components ────────────────────────────────────────────────────────────
-
-function Header({ tab, tableLabel }: { tab: Tab; tableLabel: string }) {
-  const titles: Record<Tab, string> = {
-    home: RESTAURANT_NAME,
-    menu: "Carta",
-    order: "Mi pedido",
-    waiter: "Camarero",
-    bill: "Cuenta",
-    feedback: "Opinión",
-    ai: "Luca IA",
-  };
+function Header({ title = RESTAURANT.name, tableLabel }: { title?: string; tableLabel: string }) {
   return (
-    <header style={hdr.root}>
-      <span style={hdr.title}>{titles[tab]}</span>
-      <span style={hdr.badge}>{tableLabel}</span>
-    </header>
+    <div className="header">
+      <button className="icon">{icons.menu}</button>
+      <div className="header-title">{title}</div>
+      <div className="pill">{tableLabel}</div>
+    </div>
   );
 }
 
-const hdr = {
-  root: {
-    position: "sticky" as const,
-    top: 0,
-    zIndex: 50,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    padding: "14px 20px",
-    background: "rgba(10,10,15,0.92)",
-    backdropFilter: "blur(12px)",
-    borderBottom: "1px solid rgba(255,255,255,0.07)",
-  },
-  title: {
-    fontFamily: "var(--font-playfair, 'Playfair Display', serif)",
-    fontSize: "1.15rem",
-    fontWeight: 700,
-    color: "#c9a84c",
-    letterSpacing: "0.02em",
-  },
-  badge: {
-    fontSize: "0.75rem",
-    color: "rgba(240,237,230,0.55)",
-    background: "rgba(255,255,255,0.06)",
-    padding: "3px 10px",
-    borderRadius: 20,
-    border: "1px solid rgba(255,255,255,0.1)",
-  },
-};
+// ── Home ──────────────────────────────────────────────────────────────────────
+
+function Home({ go, orders, qrCtx }: { go: (t: Tab) => void; orders: Order[]; qrCtx: TableContext }) {
+  const active = orders.find((o) => o.status !== "served");
+  return (
+    <main className="screen fade">
+      <section className="hero">
+        <div className="topbar">
+          <button className="icon">{icons.menu}</button>
+          <div className="brand">{RESTAURANT.name}<small>RISTORANTE</small></div>
+          <div className="pill">{qrCtx.tableLabel}</div>
+        </div>
+        <div className="hero-copy">
+          <span className="eyebrow">Benvenuto · {qrCtx.zone}</span>
+          <h1>Disfruta tu experiencia</h1>
+          <p>{RESTAURANT.concept} · {RESTAURANT.city}</p>
+        </div>
+      </section>
+
+      <div className="action-grid">
+        <button className="action" onClick={() => go("menu")}>
+          {icons.menu}<h3>Carta</h3><p>Explora el menú y agrega platos.</p>
+        </button>
+        <button className="action" onClick={() => go("order")}>
+          {icons.order}<h3>Estado del pedido</h3>
+          <p>{active ? `${active.id} · ${active.etaMinutes ? `${active.etaMinutes} min` : "En cocina"}` : "Sigue cocina en vivo."}</p>
+        </button>
+        <button className="action" onClick={() => go("waiter")}>
+          {icons.bell}<h3>Llamar camarero</h3><p>Ayuda, bebidas o atención rápida.</p>
+        </button>
+        <button className="action" onClick={() => go("bill")}>
+          {icons.bill}<h3>La cuenta</h3><p>Ver consumo y solicitar cobro.</p>
+        </button>
+        <button className="action" onClick={() => go("feedback")}>
+          {icons.star}<h3>Reseña</h3><p>Valora la experiencia.</p>
+        </button>
+        <button className="action" onClick={() => go("ai")}>
+          {icons.spark}<h3>Luca IA</h3><p>Recomendaciones, alergias y dudas.</p>
+        </button>
+      </div>
+
+      <div className="promo-row">
+        {PROMOS.map((p) => (
+          <article className="promo glass" key={p.title}>
+            <b>{p.eyebrow}</b>
+            <h3>{p.title}</h3>
+            <p>{p.body}</p>
+            <strong>{p.price}</strong>
+          </article>
+        ))}
+      </div>
+    </main>
+  );
+}
+
+// ── Menu ──────────────────────────────────────────────────────────────────────
+
+function MenuScreen({
+  items,
+  cart,
+  openCart,
+  addItem,
+  tableLabel,
+}: {
+  items: MenuItem[];
+  cart: CartItem[];
+  openCart: () => void;
+  addItem: (item: MenuItem) => void;
+  tableLabel: string;
+}) {
+  const [cat, setCat] = useState("Todos");
+  const [q, setQ] = useState("");
+
+  const cats = useMemo(
+    () => ["Todos", ...Array.from(new Set(items.map((d) => d.category)))],
+    [items]
+  );
+
+  const list = items.filter(
+    (d) =>
+      (cat === "Todos" || d.category === cat) &&
+      (d.name + d.subtitle + d.tags.join(" ")).toLowerCase().includes(q.toLowerCase())
+  );
+
+  const subtotal = cart.reduce((s, c) => s + c.item.price * c.qty, 0);
+  const count = getCartCount(cart);
+
+  return (
+    <main className="screen fade">
+      <Header title="Carta" tableLabel={tableLabel} />
+      <div className="searchbar">
+        <div className="icon">{icons.search}</div>
+        <input
+          className="searchbox"
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder="Buscar plato, alérgeno o categoría..."
+        />
+      </div>
+      <div className="cat-row">
+        {cats.map((c) => (
+          <button key={c} className={`cat ${cat === c ? "on" : ""}`} onClick={() => setCat(c)}>
+            {c}
+          </button>
+        ))}
+      </div>
+      <div className="dish-list">
+        {list.map((d) => {
+          const inCart = cart.find((c) => c.item.id === d.id);
+          const qty = inCart?.qty ?? 0;
+          return (
+            <article className="dish glass" key={d.id}>
+              <div
+                className="photo"
+                style={{ backgroundImage: dishPhoto(d) ? `url(${dishPhoto(d)})` : undefined }}
+              />
+              <div>
+                <h3>{d.name}</h3>
+                <p>{d.subtitle}</p>
+                <div className="tags">
+                  {d.tags.slice(0, 2).map((t) => <span className="tag" key={t}>{t}</span>)}
+                </div>
+                <div style={{ marginTop: 8, color: "#bfae9d", fontSize: 11 }}>
+                  {d.avgPrepMinutes} min · {d.kcal} kcal
+                </div>
+              </div>
+              <div style={{ display: "grid", gap: 10, justifyItems: "end" }}>
+                <div className="price">{money(d.price)}</div>
+                {qty > 0 ? (
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <span style={{ color: "var(--gold2)", fontWeight: 900 }}>{qty}</span>
+                    <button className="add" onClick={() => addItem(d)}>{icons.plus}</button>
+                  </div>
+                ) : (
+                  <button className="add" onClick={() => addItem(d)}>{icons.plus}</button>
+                )}
+              </div>
+            </article>
+          );
+        })}
+      </div>
+      {count > 0 && (
+        <button className="floating-cart" onClick={openCart}>
+          <span>{count} item{count > 1 ? "s" : ""}</span>
+          <span>{money(subtotal)} · Ver pedido</span>
+        </button>
+      )}
+    </main>
+  );
+}
+
+// ── CartDrawer ────────────────────────────────────────────────────────────────
+
+function CartDrawer({
+  open,
+  setOpen,
+  cart,
+  addItem,
+  removeItem,
+  onSubmit,
+  submitting,
+}: {
+  open: boolean;
+  setOpen: (v: boolean) => void;
+  cart: CartItem[];
+  addItem: (item: MenuItem) => void;
+  removeItem: (id: string) => void;
+  onSubmit: (note: string) => void;
+  submitting: boolean;
+}) {
+  const [note, setNote] = useState("");
+  const subtotal = cart.reduce((s, c) => s + c.item.price * c.qty, 0);
+
+  return (
+    <aside className={`drawer ${open ? "open" : ""}`}>
+      <div className="drawer-head">
+        <h2>Tu pedido</h2>
+        <button className="icon" onClick={() => setOpen(false)}>{icons.x}</button>
+      </div>
+      <div className="cart-list">
+        {cart.length ? (
+          cart.map(({ item, qty }) => (
+            <div className="cart-item" key={item.id}>
+              <div>
+                <h4>{item.name}</h4>
+                <small>{qty} × {money(item.price)}</small>
+              </div>
+              <div className="qty">
+                <button onClick={() => removeItem(item.id)}>{icons.minus}</button>
+                <strong>{qty}</strong>
+                <button onClick={() => addItem(item)}>{icons.plus}</button>
+              </div>
+            </div>
+          ))
+        ) : (
+          <div className="empty">Aún no agregaste platos.</div>
+        )}
+      </div>
+      {!!cart.length && (
+        <>
+          <textarea
+            className="searchbox glass"
+            style={{ width: "100%", color: "white", minHeight: 72, border: "1px solid rgba(255,255,255,.12)" }}
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder="Notas para cocina: sin cebolla, punto de carne, alergias..."
+          />
+          <div className="total-row"><span>Subtotal</span><strong>{money(subtotal)}</strong></div>
+          <div className="total-row"><span>Servicio sugerido 10%</span><strong>{money(subtotal * 0.1)}</strong></div>
+          <div className="total-row strong"><span>Total estimado</span><strong>{money(subtotal * 1.1)}</strong></div>
+          <button
+            className="btn primary"
+            style={{ width: "100%", opacity: submitting ? 0.7 : 1 }}
+            disabled={submitting}
+            onClick={() => { onSubmit(note); setNote(""); }}
+          >
+            {submitting ? "Enviando a cocina..." : "Enviar a cocina"}
+          </button>
+        </>
+      )}
+    </aside>
+  );
+}
+
+// ── OrderStatus ───────────────────────────────────────────────────────────────
+
+function OrderStatus({ orders, tableLabel }: { orders: Order[]; tableLabel: string }) {
+  return (
+    <main className="screen fade">
+      <Header tableLabel={tableLabel} />
+      <div className="section-title">
+        <h2>Estado del pedido</h2>
+        <span>Live kitchen</span>
+      </div>
+      {orders.length ? (
+        orders.map((o) => (
+          <article key={o.id} className="status-card glass">
+            <div className="status-head">
+              <div>
+                <h3>{o.id.startsWith("optimistic") ? "Nuevo pedido" : o.id}</h3>
+                <small>{new Date(o.createdAt).toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" })}</small>
+              </div>
+              <div className="eta">
+                {o.status === "served" ? "Listo" : o.etaMinutes ? `${o.etaMinutes} min` : "En cocina"}
+              </div>
+            </div>
+            <div className="steps">
+              {KITCHEN_STEPS.map((s, i) => (
+                <span key={s.key} className={`step ${i <= statusIndex(o.status) ? "on" : ""}`} />
+              ))}
+            </div>
+            <div className="order-lines">
+              {KITCHEN_STEPS.map((s, i) => (
+                <div key={s.key} style={{ opacity: i <= statusIndex(o.status) ? 1 : 0.38 }}>
+                  ● {s.label}
+                </div>
+              ))}
+              <br />
+              {o.items.map(({ item, qty }) => (
+                <div key={item.id}>{qty}× {item.name}</div>
+              ))}
+            </div>
+          </article>
+        ))
+      ) : (
+        <div className="empty glass">No hay pedidos activos.</div>
+      )}
+    </main>
+  );
+}
+
+// ── Waiter ────────────────────────────────────────────────────────────────────
+
+function Waiter({
+  pending,
+  calling,
+  tableLabel,
+  onCall,
+}: {
+  pending: boolean;
+  calling: boolean;
+  tableLabel: string;
+  onCall: (reason: string) => void;
+}) {
+  return (
+    <main className="screen fade">
+      <Header tableLabel={tableLabel} />
+      <section className="waiter-hero glass">
+        <h2 style={{ margin: 0, fontSize: 28, letterSpacing: "-.06em" }}>Atención en mesa</h2>
+        <p style={{ color: "#bfae9d" }}>Notifica al camarero sin levantar la mano.</p>
+        <button
+          className={`bell-big ${pending || calling ? "active" : ""}`}
+          onClick={() => onCall("Atención solicitada")}
+        >
+          {icons.bell}
+        </button>
+        <strong>
+          {calling ? "Enviando aviso..." : pending ? "Camarero notificado" : "Tocar para llamar"}
+        </strong>
+      </section>
+      <div className="quick-list">
+        {WAITER_REASONS.map((r) => (
+          <button className="quick" key={r} onClick={() => onCall(r)}>
+            <span>{r}</span><span>→</span>
+          </button>
+        ))}
+      </div>
+    </main>
+  );
+}
+
+// ── Bill ──────────────────────────────────────────────────────────────────────
+
+function Bill({
+  orders,
+  tableLabel,
+  qrCtx,
+  onRequest,
+  requesting,
+  requested,
+}: {
+  orders: Order[];
+  tableLabel: string;
+  qrCtx: TableContext;
+  onRequest: () => void;
+  requesting: boolean;
+  requested: boolean;
+}) {
+  const allItems = orders.flatMap((o) => o.items);
+  const grouped = allItems.reduce<Record<string, { item: MenuItem; qty: number }>>((acc, { item, qty }) => ({
+    ...acc,
+    [item.id]: { item, qty: (acc[item.id]?.qty || 0) + qty },
+  }), {});
+  const subtotal = Object.values(grouped).reduce((s, { item, qty }) => s + item.price * qty, 0);
+  const tip = Math.round(subtotal * 0.1);
+  const total = subtotal + tip;
+
+  return (
+    <main className="screen fade">
+      <Header tableLabel={tableLabel} />
+      <div className="section-title">
+        <h2>Cuenta</h2>
+        <span>{qrCtx.tableLabel}</span>
+      </div>
+      <section className="bill-card glass">
+        {Object.values(grouped).length ? (
+          Object.values(grouped).map(({ item, qty }) => (
+            <div className="bill-line" key={item.id}>
+              <div>
+                <strong>{item.name}</strong>
+                <small>{qty} × {money(item.price)}</small>
+              </div>
+              <strong>{money(qty * item.price)}</strong>
+            </div>
+          ))
+        ) : (
+          <div className="empty">Sin consumo registrado todavía.</div>
+        )}
+        <div className="total-row"><span>Subtotal</span><strong>{money(subtotal)}</strong></div>
+        <div className="total-row"><span>Servicio sugerido 10%</span><strong>{money(tip)}</strong></div>
+        <div className="total-row strong"><span>Total</span><strong>{money(total)}</strong></div>
+        {requested ? (
+          <div style={{ textAlign: "center", padding: "16px 0" }}>
+            <strong style={{ color: "var(--green)" }}>✓ Cuenta solicitada</strong>
+            <p style={{ color: "#bfae9d", fontSize: 13, marginTop: 6 }}>El camarero irá a la mesa para el cobro.</p>
+          </div>
+        ) : (
+          <button
+            disabled={!subtotal || requesting}
+            className="btn primary"
+            style={{ width: "100%", opacity: !subtotal ? 0.45 : 1 }}
+            onClick={onRequest}
+          >
+            {requesting ? "Solicitando camarero..." : "Solicitar cobro"}
+          </button>
+        )}
+        <p style={{ color: "#bfae9d", fontSize: 12, lineHeight: 1.5, margin: "12px 0 0" }}>
+          El cobro siempre lo realiza el camarero en la mesa.
+        </p>
+      </section>
+    </main>
+  );
+}
+
+// ── Feedback ──────────────────────────────────────────────────────────────────
+
+function Feedback({
+  tableLabel,
+  qrCtx,
+  onSubmit,
+  submitting,
+  submitted,
+}: {
+  tableLabel: string;
+  qrCtx: TableContext;
+  onSubmit: (rating: number, comment: string) => void;
+  submitting: boolean;
+  submitted: boolean;
+}) {
+  const [rating, setRating] = useState(5);
+  const [comment, setComment] = useState("");
+
+  if (submitted) {
+    return (
+      <main className="screen fade">
+        <Header title="Reseña" tableLabel={tableLabel} />
+        <section className="review-card glass" style={{ textAlign: "center" }}>
+          <p style={{ fontSize: 40, margin: "20px 0" }}>⭐</p>
+          <strong style={{ color: "var(--gold2)", fontSize: 18 }}>¡Gracias por tu valoración!</strong>
+          <p style={{ color: "#bfae9d", marginTop: 8 }}>Nos ayuda a mejorar cada día.</p>
+          <button
+            className="btn ghost"
+            style={{ width: "100%", marginTop: 16 }}
+            onClick={() => window.open(RESTAURANT.googleReviewUrl, "_blank")}
+          >
+            Dejar reseña en Google ↗
+          </button>
+        </section>
+      </main>
+    );
+  }
+
+  return (
+    <main className="screen fade">
+      <Header title="Reseña" tableLabel={tableLabel} />
+      <section className="review-card glass">
+        <div className="section-title" style={{ display: "block", textAlign: "center", margin: 0 }}>
+          <h2>¿Qué tal estuvo?</h2>
+          <span>Tu opinión ayuda al restaurante a mejorar.</span>
+        </div>
+        <div className="stars">
+          {[1, 2, 3, 4, 5].map((n) => (
+            <button key={n} className={`star-btn ${n <= rating ? "on" : ""}`} onClick={() => setRating(n)}>
+              {icons.star}
+            </button>
+          ))}
+        </div>
+        <textarea
+          className="searchbox glass"
+          style={{ width: "100%", color: "white", minHeight: 96, border: "1px solid rgba(255,255,255,.12)" }}
+          value={comment}
+          onChange={(e) => setComment(e.target.value)}
+          placeholder="Comentario opcional para el restaurante..."
+        />
+        <button
+          className="btn primary"
+          style={{ width: "100%", marginTop: 12, opacity: submitting ? 0.7 : 1 }}
+          disabled={submitting}
+          onClick={() => onSubmit(rating, comment)}
+        >
+          {submitting ? "Enviando..." : "Enviar valoración"}
+        </button>
+        <button
+          className="btn ghost"
+          style={{ width: "100%", marginTop: 10 }}
+          onClick={() => window.open(RESTAURANT.googleReviewUrl, "_blank")}
+        >
+          Dejar reseña en Google
+        </button>
+      </section>
+    </main>
+  );
+}
+
+// ── Assistant (Luca) ──────────────────────────────────────────────────────────
+
+interface AiMsg { role: "ai" | "user"; text: string }
+
+function aiReply(q: string, menuItems: MenuItem[], go: (t: Tab) => void, callWaiter: (r: string) => void): string {
+  const lower = q.toLowerCase();
+  if (lower.includes("cuenta") || lower.includes("pagar") || lower.includes("cobro")) {
+    setTimeout(() => go("bill"), 300);
+    return "Te llevo a la cuenta. El camarero irá a la mesa para realizar el cobro.";
+  }
+  if (lower.includes("mesero") || lower.includes("camarero") || lower.includes("ayuda")) {
+    callWaiter("Solicitado por asistente IA");
+    return "Listo, avisé al camarero de la mesa.";
+  }
+  if (lower.includes("estado") || lower.includes("pedido")) {
+    setTimeout(() => go("order"), 300);
+    return "Abrí el estado de cocina para que veas cada etapa del pedido.";
+  }
+  if (lower.includes("reseña") || lower.includes("review") || lower.includes("google")) {
+    setTimeout(() => go("feedback"), 300);
+    return "Te llevo a la sección de reseña.";
+  }
+  if (lower.includes("sin gluten")) {
+    const sf = menuItems.filter((m) => m.tags.some((t) => t.toLowerCase().includes("gluten")));
+    return sf.length
+      ? `Para sin gluten: ${sf.map((m) => m.name).join(", ")}. Igual recomiendo avisar alergia real al camarero.`
+      : "Para sin gluten: Branzino al Forno y Panna Cotta. Igual recomiendo avisar alergia real al camarero.";
+  }
+  if (lower.includes("recom")) {
+    return "Mi jugada: Arancini al Tartufo para abrir, Osso Buco si quieres algo potente, o Branzino si prefieres ligero.";
+  }
+  const found = menuItems.find(
+    (d) => lower.includes(d.name.toLowerCase().split(" ")[0]) || lower.includes(d.id)
+  );
+  if (found) {
+    return `${found.name}: ${found.description} Tiempo estimado ${found.avgPrepMinutes} min${found.winePair ? `, maridaje sugerido ${found.winePair}` : ""}. Alérgenos: ${found.allergens.join(", ") || "sin alérgenos declarados"}.`;
+  }
+  return "Puedo ayudarte con recomendaciones, alérgenos, estado del pedido, camarero, cuenta o reseña.";
+}
+
+function Assistant({ menuItems, go, callWaiter }: { menuItems: MenuItem[]; go: (t: Tab) => void; callWaiter: (r: string) => void }) {
+  const [msgs, setMsgs] = useState<AiMsg[]>([
+    { role: "ai", text: "Soy Luca. Puedo recomendar platos, explicar alérgenos, llamar al camarero, revisar tu pedido, pedir la cuenta o ayudarte a dejar una reseña." },
+  ]);
+  const [text, setText] = useState("");
+  const endRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [msgs]);
+
+  const send = useCallback((value = text) => {
+    const q = value.trim();
+    if (!q) return;
+    setText("");
+    const reply = aiReply(q, menuItems, go, callWaiter);
+    setMsgs((m) => [...m, { role: "user", text: q }, { role: "ai", text: reply }]);
+  }, [text, menuItems, go, callWaiter]);
+
+  const chips = ["¿Qué recomiendas?", "¿Sin gluten?", "Ver estado", "Pedir cuenta", "Llamar camarero", "Dejar reseña"];
+
+  return (
+    <main className="chat fade">
+      <div className="messages">
+        {msgs.map((m, i) => <div key={i} className={`msg ${m.role}`}>{m.text}</div>)}
+        <div ref={endRef} />
+      </div>
+      <div className="chips">
+        {chips.map((c) => <button key={c} onClick={() => send(c)}>{c}</button>)}
+      </div>
+      <div className="composer">
+        <textarea
+          rows={1}
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
+          placeholder="Pregúntale a Luca..."
+        />
+        <button onClick={() => send()}>{icons.send}</button>
+      </div>
+    </main>
+  );
+}
 
 // ── Nav ───────────────────────────────────────────────────────────────────────
 
-interface NavProps {
-  tab: Tab;
-  onTab: (t: Tab) => void;
-  cartCount: number;
-}
-
-function Nav({ tab, onTab, cartCount: count }: NavProps) {
-  const items: { key: Tab; icon: string; label: string }[] = [
-    { key: "home", icon: "⌂", label: "Inicio" },
-    { key: "menu", icon: "☰", label: "Carta" },
-    { key: "order", icon: "◷", label: "Pedido" },
-    { key: "waiter", icon: "◎", label: "Camarero" },
-    { key: "bill", icon: "◈", label: "Cuenta" },
-    { key: "ai", icon: "✦", label: "Luca" },
+function Nav({ tab, setTab, cartCount: count }: { tab: Tab; setTab: (t: Tab) => void; cartCount: number }) {
+  const items: [Tab, string, React.ReactElement][] = [
+    ["home", "Inicio", icons.home],
+    ["menu", "Carta", icons.menu],
+    ["order", "Pedido", icons.order],
+    ["waiter", "Camarero", icons.bell],
+    ["bill", "Cuenta", icons.bill],
   ];
   return (
-    <nav style={nav.root}>
-      {items.map((it) => (
-        <button key={it.key} onClick={() => onTab(it.key)} style={nav.btn(tab === it.key)}>
-          <span style={nav.icon}>
-            {it.icon}
-            {it.key === "menu" && count > 0 && (
-              <span style={nav.dot}>{count}</span>
-            )}
-          </span>
-          <span style={nav.label}>{it.label}</span>
+    <nav className="nav">
+      {items.map(([id, label, icon]) => (
+        <button key={id} className={tab === id ? "on" : ""} onClick={() => setTab(id)}>
+          {id === "menu" && count > 0 && <span className="cart-badge">{count}</span>}
+          {icon}
+          <span>{label}</span>
         </button>
       ))}
     </nav>
   );
 }
 
-const nav = {
-  root: {
-    position: "fixed" as const,
-    bottom: 0,
-    left: 0,
-    right: 0,
-    display: "flex",
-    background: "rgba(10,10,15,0.96)",
-    backdropFilter: "blur(16px)",
-    borderTop: "1px solid rgba(255,255,255,0.07)",
-    paddingBottom: "env(safe-area-inset-bottom, 0px)",
-    zIndex: 50,
-  },
-  btn: (active: boolean) =>
-    ({
-      flex: 1,
-      display: "flex",
-      flexDirection: "column" as const,
-      alignItems: "center",
-      gap: 2,
-      padding: "10px 4px",
-      color: active ? "#c9a84c" : "rgba(240,237,230,0.4)",
-      transition: "color 0.18s",
-      fontSize: "1.15rem",
-      position: "relative" as const,
-    } as React.CSSProperties),
-  icon: { position: "relative" as const },
-  dot: {
-    position: "absolute" as const,
-    top: -4,
-    right: -8,
-    background: "#c9a84c",
-    color: "#0a0a0f",
-    fontSize: "0.6rem",
-    fontWeight: 700,
-    width: 16,
-    height: 16,
-    borderRadius: "50%",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-  } as React.CSSProperties,
-  label: { fontSize: "0.6rem", letterSpacing: "0.04em", textTransform: "uppercase" as const },
-};
-
-// ── Home ──────────────────────────────────────────────────────────────────────
-
-function Home({ tableCtx, onTab }: { tableCtx: TableContext; onTab: (t: Tab) => void }) {
-  return (
-    <div style={{ padding: "24px 20px", paddingBottom: 80 }}>
-      <div style={{ textAlign: "center", marginBottom: 32 }}>
-        <p style={{ fontFamily: "var(--font-playfair, serif)", fontSize: "2rem", color: "#c9a84c", lineHeight: 1.2 }}>
-          Benvenuti
-        </p>
-        <p style={{ color: "rgba(240,237,230,0.55)", marginTop: 6, fontSize: "0.9rem" }}>
-          {tableCtx.tableLabel} · {tableCtx.zone}
-        </p>
-      </div>
-
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 24 }}>
-        {(
-          [
-            { icon: "☰", label: "Ver carta", sub: "Ver el menú completo", tab: "menu" as Tab, accent: "#c9a84c" },
-            { icon: "◷", label: "Mi pedido", sub: "Estado de tus platos", tab: "order" as Tab, accent: "#60a5fa" },
-            { icon: "◎", label: "Camarero", sub: "Llamar al servicio", tab: "waiter" as Tab, accent: "#4ade80" },
-            { icon: "◈", label: "Cuenta", sub: "Solicitar el cobro", tab: "bill" as Tab, accent: "#f87171" },
-          ] as const
-        ).map((card) => (
-          <button key={card.tab} onClick={() => onTab(card.tab)} style={homeCard(card.accent)}>
-            <span style={{ fontSize: "1.8rem", marginBottom: 8, display: "block" }}>{card.icon}</span>
-            <span style={{ fontWeight: 600, fontSize: "0.9rem", display: "block", color: card.accent }}>{card.label}</span>
-            <span style={{ fontSize: "0.75rem", color: "rgba(240,237,230,0.45)", display: "block", marginTop: 2 }}>{card.sub}</span>
-          </button>
-        ))}
-      </div>
-
-      {PROMOS.map((p) => (
-        <div key={p.id} style={promoCard}>
-          <div>
-            <p style={{ fontWeight: 600, fontSize: "0.9rem" }}>{p.title}</p>
-            <p style={{ fontSize: "0.8rem", color: "rgba(240,237,230,0.55)", marginTop: 2 }}>{p.desc}</p>
-          </div>
-          <span style={promoBadge}>{p.badge}</span>
-        </div>
-      ))}
-
-      <button
-        onClick={() => onTab("ai")}
-        style={{
-          width: "100%",
-          marginTop: 16,
-          padding: "14px 16px",
-          background: "linear-gradient(135deg, rgba(201,168,76,0.12), rgba(201,168,76,0.05))",
-          border: "1px solid rgba(201,168,76,0.25)",
-          borderRadius: 16,
-          display: "flex",
-          alignItems: "center",
-          gap: 12,
-          color: "#f0ede6",
-          textAlign: "left" as const,
-        }}
-      >
-        <span style={{ fontSize: "1.5rem" }}>✦</span>
-        <div>
-          <p style={{ fontWeight: 600, fontSize: "0.9rem", color: "#c9a84c" }}>Luca, tu asistente</p>
-          <p style={{ fontSize: "0.78rem", color: "rgba(240,237,230,0.5)", marginTop: 2 }}>
-            Pregunta sobre alérgenos, maridajes o llama al camarero
-          </p>
-        </div>
-      </button>
-    </div>
-  );
-}
-
-function homeCard(accent: string): React.CSSProperties {
-  return {
-    background: "#13131a",
-    border: `1px solid rgba(255,255,255,0.07)`,
-    borderRadius: 16,
-    padding: "18px 14px",
-    textAlign: "center",
-    color: "#f0ede6",
-    transition: "background 0.18s",
-  };
-}
-
-const promoCard: React.CSSProperties = {
-  background: "#13131a",
-  border: "1px solid rgba(255,255,255,0.07)",
-  borderRadius: 14,
-  padding: "14px 16px",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "space-between",
-  marginBottom: 10,
-};
-
-const promoBadge: React.CSSProperties = {
-  background: "rgba(201,168,76,0.15)",
-  color: "#c9a84c",
-  fontSize: "0.7rem",
-  fontWeight: 700,
-  padding: "3px 10px",
-  borderRadius: 20,
-  border: "1px solid rgba(201,168,76,0.3)",
-  whiteSpace: "nowrap",
-};
-
-// ── Menu ──────────────────────────────────────────────────────────────────────
-
-interface MenuProps {
-  items: MenuItem[];
-  cart: CartItem[];
-  onAdd: (item: MenuItem) => void;
-  onRemove: (id: string) => void;
-  onOpenCart: () => void;
-}
-
-function Menu({ items, cart, onAdd, onRemove, onOpenCart }: MenuProps) {
-  const [search, setSearch] = useState("");
-  const [cat, setCat] = useState<string>("Todo");
-
-  const filtered = items.filter((m) => {
-    const matchCat = cat === "Todo" || m.category === cat;
-    const matchSearch =
-      !search ||
-      m.name.toLowerCase().includes(search.toLowerCase()) ||
-      m.description.toLowerCase().includes(search.toLowerCase());
-    return matchCat && matchSearch;
-  });
-
-  const count = cartCount(cart);
-  const total = cartTotal(cart);
-
-  return (
-    <div style={{ paddingBottom: count > 0 ? 140 : 80 }}>
-      <div style={{ padding: "16px 20px 0" }}>
-        <input
-          placeholder="Buscar platos…"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          style={searchInput}
-        />
-        <div style={{ display: "flex", gap: 8, overflowX: "auto" as const, paddingBottom: 8, marginTop: 12, scrollbarWidth: "none" as const }}>
-          {CATEGORIES.map((c) => (
-            <button key={c} onClick={() => setCat(c)} style={catChip(cat === c)}>
-              {c}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div style={{ padding: "8px 20px" }}>
-        {filtered.length === 0 ? (
-          <p style={{ textAlign: "center", color: "rgba(240,237,230,0.4)", padding: "40px 0" }}>
-            No hay platos que coincidan.
-          </p>
-        ) : (
-          filtered.map((item) => {
-            const inCart = cart.find((c) => c.item.id === item.id);
-            const qty = inCart?.qty ?? 0;
-            return <MenuCard key={item.id} item={item} qty={qty} onAdd={onAdd} onRemove={onRemove} />;
-          })
-        )}
-      </div>
-
-      {count > 0 && (
-        <div style={floatingCart}>
-          <button onClick={onOpenCart} style={floatingCartBtn}>
-            <span style={{ background: "rgba(0,0,0,0.3)", borderRadius: 8, padding: "2px 8px", fontWeight: 700 }}>
-              {count}
-            </span>
-            <span style={{ flex: 1, textAlign: "center" as const }}>Ver carrito</span>
-            <span style={{ fontWeight: 700 }}>{money(total)}</span>
-          </button>
-        </div>
-      )}
-    </div>
-  );
-}
-
-const searchInput: React.CSSProperties = {
-  width: "100%",
-  padding: "10px 14px",
-  background: "#13131a",
-  border: "1px solid rgba(255,255,255,0.1)",
-  borderRadius: 12,
-  color: "#f0ede6",
-  fontSize: "0.9rem",
-  outline: "none",
-};
-
-function catChip(active: boolean): React.CSSProperties {
-  return {
-    flexShrink: 0,
-    padding: "6px 14px",
-    borderRadius: 20,
-    fontSize: "0.8rem",
-    fontWeight: active ? 600 : 400,
-    background: active ? "#c9a84c" : "rgba(255,255,255,0.06)",
-    color: active ? "#0a0a0f" : "rgba(240,237,230,0.6)",
-    border: active ? "none" : "1px solid rgba(255,255,255,0.08)",
-    whiteSpace: "nowrap" as const,
-  };
-}
-
-const floatingCart: React.CSSProperties = {
-  position: "fixed",
-  bottom: 70,
-  left: 20,
-  right: 20,
-  zIndex: 40,
-};
-
-const floatingCartBtn: React.CSSProperties = {
-  width: "100%",
-  display: "flex",
-  alignItems: "center",
-  gap: 12,
-  padding: "14px 16px",
-  background: "#c9a84c",
-  color: "#0a0a0f",
-  borderRadius: 14,
-  fontWeight: 600,
-  fontSize: "0.95rem",
-  boxShadow: "0 4px 20px rgba(201,168,76,0.4)",
-};
-
-function MenuCard({
-  item,
-  qty,
-  onAdd,
-  onRemove,
-}: {
-  item: MenuItem;
-  qty: number;
-  onAdd: (i: MenuItem) => void;
-  onRemove: (id: string) => void;
-}) {
-  const [expanded, setExpanded] = useState(false);
-  const oos = item.stockStatus === "out";
-
-  return (
-    <div style={mCard.root(oos)}>
-      <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
-        <div style={{ flex: 1 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" as const }}>
-            <p style={mCard.name}>{item.name}</p>
-            {item.tags.slice(0, 2).map((t) => (
-              <span key={t} style={mCard.tag}>{t}</span>
-            ))}
-          </div>
-          <p style={mCard.subtitle}>{item.subtitle}</p>
-
-          {expanded && (
-            <div style={{ marginTop: 8 }}>
-              <p style={{ fontSize: "0.82rem", color: "rgba(240,237,230,0.65)", lineHeight: 1.5 }}>{item.description}</p>
-              {item.allergens.length > 0 && (
-                <p style={{ fontSize: "0.75rem", color: "rgba(240,237,230,0.4)", marginTop: 6 }}>
-                  ⚠ {item.allergens.join(", ")}
-                </p>
-              )}
-              {item.winePair && (
-                <p style={{ fontSize: "0.75rem", color: "#c9a84c", marginTop: 4 }}>
-                  🍷 {item.winePair}
-                </p>
-              )}
-              <p style={{ fontSize: "0.75rem", color: "rgba(240,237,230,0.35)", marginTop: 4 }}>
-                ~{item.avgPrepMinutes} min · {item.kcal} kcal
-              </p>
-            </div>
-          )}
-
-          <button
-            onClick={() => setExpanded((e) => !e)}
-            style={{ fontSize: "0.75rem", color: "#c9a84c", marginTop: 6, background: "none", border: "none", padding: 0, cursor: "pointer" }}
-          >
-            {expanded ? "Menos ▲" : "Más info ▼"}
-          </button>
-        </div>
-
-        <div style={{ display: "flex", flexDirection: "column" as const, alignItems: "flex-end", gap: 8, minWidth: 80 }}>
-          <p style={mCard.price}>{money(item.price)}</p>
-          {oos ? (
-            <span style={{ fontSize: "0.7rem", color: "#f87171", background: "rgba(248,113,113,0.1)", padding: "3px 8px", borderRadius: 8 }}>
-              Agotado
-            </span>
-          ) : qty === 0 ? (
-            <button onClick={() => onAdd(item)} style={mCard.addBtn}>+ Añadir</button>
-          ) : (
-            <div style={mCard.qtyRow}>
-              <button onClick={() => onRemove(item.id)} style={mCard.qtyBtn}>−</button>
-              <span style={{ fontWeight: 600, fontSize: "0.9rem", minWidth: 20, textAlign: "center" as const }}>{qty}</span>
-              <button onClick={() => onAdd(item)} style={mCard.qtyBtn}>+</button>
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-const mCard = {
-  root: (oos: boolean): React.CSSProperties => ({
-    background: "#13131a",
-    border: "1px solid rgba(255,255,255,0.07)",
-    borderRadius: 14,
-    padding: "14px 14px",
-    marginBottom: 10,
-    opacity: oos ? 0.55 : 1,
-  }),
-  name: { fontWeight: 600, fontSize: "0.92rem", color: "#f0ede6" } as React.CSSProperties,
-  subtitle: { fontSize: "0.78rem", color: "rgba(240,237,230,0.45)", marginTop: 2 } as React.CSSProperties,
-  price: { fontWeight: 700, fontSize: "0.95rem", color: "#c9a84c" } as React.CSSProperties,
-  tag: {
-    fontSize: "0.65rem",
-    background: "rgba(74,222,128,0.12)",
-    color: "#4ade80",
-    padding: "2px 7px",
-    borderRadius: 10,
-    border: "1px solid rgba(74,222,128,0.2)",
-  } as React.CSSProperties,
-  addBtn: {
-    background: "rgba(201,168,76,0.12)",
-    color: "#c9a84c",
-    border: "1px solid rgba(201,168,76,0.3)",
-    borderRadius: 10,
-    padding: "5px 12px",
-    fontSize: "0.8rem",
-    fontWeight: 600,
-    cursor: "pointer",
-  } as React.CSSProperties,
-  qtyRow: {
-    display: "flex",
-    alignItems: "center",
-    gap: 8,
-    background: "rgba(255,255,255,0.05)",
-    borderRadius: 10,
-    padding: "3px 8px",
-  } as React.CSSProperties,
-  qtyBtn: {
-    width: 24,
-    height: 24,
-    borderRadius: 6,
-    background: "rgba(255,255,255,0.08)",
-    color: "#f0ede6",
-    fontWeight: 700,
-    fontSize: "1rem",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    cursor: "pointer",
-  } as React.CSSProperties,
-};
-
-// ── CartDrawer ────────────────────────────────────────────────────────────────
-
-interface CartDrawerProps {
-  cart: CartItem[];
-  note: string;
-  onClose: () => void;
-  onAdd: (item: MenuItem) => void;
-  onRemove: (id: string) => void;
-  onNoteChange: (n: string) => void;
-  onSubmit: () => void;
-  submitting: boolean;
-}
-
-function CartDrawer({ cart, note, onClose, onAdd, onRemove, onNoteChange, onSubmit, submitting }: CartDrawerProps) {
-  const total = cartTotal(cart);
-
-  return (
-    <div style={drawer.overlay} onClick={onClose}>
-      <div style={drawer.panel} onClick={(e) => e.stopPropagation()}>
-        <div style={drawer.handle} />
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-          <p style={{ fontWeight: 700, fontSize: "1.05rem" }}>Tu pedido</p>
-          <button onClick={onClose} style={{ color: "rgba(240,237,230,0.5)", fontSize: "1.3rem" }}>✕</button>
-        </div>
-
-        <div style={{ overflowY: "auto" as const, maxHeight: "40vh", marginBottom: 16 }}>
-          {cart.map(({ item, qty }) => (
-            <div key={item.id} style={drawer.row}>
-              <div style={{ flex: 1 }}>
-                <p style={{ fontWeight: 600, fontSize: "0.88rem" }}>{item.name}</p>
-                <p style={{ fontSize: "0.78rem", color: "rgba(240,237,230,0.45)" }}>{money(item.price)} · ud</p>
-              </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <button onClick={() => onRemove(item.id)} style={drawer.qBtn}>−</button>
-                <span style={{ fontWeight: 700, minWidth: 20, textAlign: "center" as const }}>{qty}</span>
-                <button onClick={() => onAdd(item)} style={drawer.qBtn}>+</button>
-                <span style={{ minWidth: 60, textAlign: "right" as const, fontWeight: 600, color: "#c9a84c" }}>
-                  {money(item.price * qty)}
-                </span>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        <textarea
-          placeholder="Nota para cocina (alergias, variaciones…)"
-          value={note}
-          onChange={(e) => onNoteChange(e.target.value)}
-          rows={2}
-          style={{ ...searchInput, resize: "none" as const, marginBottom: 16 }}
-        />
-
-        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
-          <span style={{ color: "rgba(240,237,230,0.55)" }}>Total</span>
-          <span style={{ fontWeight: 700, fontSize: "1.1rem", color: "#c9a84c" }}>{money(total)}</span>
-        </div>
-
-        <button
-          onClick={onSubmit}
-          disabled={submitting || cart.length === 0}
-          style={{
-            ...floatingCartBtn,
-            justifyContent: "center",
-            opacity: submitting ? 0.7 : 1,
-            width: "100%",
-          }}
-        >
-          {submitting ? "Enviando…" : "Confirmar pedido"}
-        </button>
-      </div>
-    </div>
-  );
-}
-
-const drawer = {
-  overlay: {
-    position: "fixed" as const,
-    inset: 0,
-    background: "rgba(0,0,0,0.6)",
-    backdropFilter: "blur(4px)",
-    zIndex: 100,
-    display: "flex",
-    alignItems: "flex-end",
-  },
-  panel: {
-    width: "100%",
-    background: "#13131a",
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    padding: "16px 20px 32px",
-    boxShadow: "0 -8px 40px rgba(0,0,0,0.5)",
-    maxHeight: "90dvh",
-    overflowY: "auto" as const,
-  },
-  handle: {
-    width: 40,
-    height: 4,
-    background: "rgba(255,255,255,0.15)",
-    borderRadius: 2,
-    margin: "0 auto 20px",
-  },
-  row: {
-    display: "flex",
-    alignItems: "center",
-    gap: 12,
-    padding: "10px 0",
-    borderBottom: "1px solid rgba(255,255,255,0.06)",
-  } as React.CSSProperties,
-  qBtn: {
-    width: 28,
-    height: 28,
-    borderRadius: 8,
-    background: "rgba(255,255,255,0.08)",
-    color: "#f0ede6",
-    fontWeight: 700,
-    cursor: "pointer",
-    fontSize: "1rem",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-  } as React.CSSProperties,
-};
-
-// ── OrderStatus ───────────────────────────────────────────────────────────────
-
-function OrderStatus({ orders }: { orders: Order[] }) {
-  if (orders.length === 0) {
-    return (
-      <div style={{ padding: "60px 20px", textAlign: "center" }}>
-        <p style={{ fontSize: "2.5rem", marginBottom: 16 }}>🍽️</p>
-        <p style={{ color: "rgba(240,237,230,0.45)" }}>Aún no tienes pedidos activos.</p>
-      </div>
-    );
-  }
-
-  return (
-    <div style={{ padding: "16px 20px", paddingBottom: 80 }}>
-      {orders.map((order) => (
-        <div key={order.id} style={ord.card}>
-          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
-            <p style={{ fontWeight: 600, fontSize: "0.9rem" }}>
-              Pedido #{order.id.slice(-6)}
-            </p>
-            <span style={ord.statusChip(order.status)}>{ord.statusLabel(order.status)}</span>
-          </div>
-
-          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20, position: "relative" }}>
-            {KITCHEN_STEPS.map((step, i) => {
-              const idx = statusIndex(order.status as KitchenStatus);
-              const done = i <= idx;
-              const active = i === idx;
-              return (
-                <div key={step.key} style={ord.step(done, active)}>
-                  <div style={ord.stepDot(done, active)}>
-                    {done ? "✓" : step.icon}
-                  </div>
-                  <span style={{ fontSize: "0.65rem", marginTop: 4, textAlign: "center" as const, color: done ? "#c9a84c" : "rgba(240,237,230,0.3)" }}>
-                    {step.label}
-                  </span>
-                </div>
-              );
-            })}
-            <div style={ord.progressLine}>
-              <div style={ord.progressFill(statusIndex(order.status as KitchenStatus))} />
-            </div>
-          </div>
-
-          {order.etaMinutes !== null && (
-            <p style={{ fontSize: "0.8rem", color: "#60a5fa", marginBottom: 12 }}>
-              ⏱ Tiempo estimado: ~{order.etaMinutes} min
-            </p>
-          )}
-
-          {order.items.length > 0 && (
-            <div style={{ borderTop: "1px solid rgba(255,255,255,0.06)", paddingTop: 10, marginTop: 4 }}>
-              {order.items.map(({ item, qty }) => (
-                <div key={item.id} style={{ display: "flex", justifyContent: "space-between", fontSize: "0.82rem", padding: "3px 0" }}>
-                  <span style={{ color: "rgba(240,237,230,0.65)" }}>{qty}× {item.name}</span>
-                  <span style={{ color: "#c9a84c" }}>{money(item.price * qty)}</span>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {order.note && (
-            <p style={{ fontSize: "0.75rem", color: "rgba(240,237,230,0.4)", marginTop: 8 }}>
-              Nota: {order.note}
-            </p>
-          )}
-
-          <div style={{ display: "flex", justifyContent: "space-between", marginTop: 12, paddingTop: 10, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
-            <span style={{ color: "rgba(240,237,230,0.5)", fontSize: "0.85rem" }}>Total</span>
-            <span style={{ fontWeight: 700, color: "#c9a84c" }}>{money(order.total)}</span>
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-const ord = {
-  card: {
-    background: "#13131a",
-    border: "1px solid rgba(255,255,255,0.07)",
-    borderRadius: 16,
-    padding: "16px",
-    marginBottom: 14,
-  } as React.CSSProperties,
-  statusLabel: (s: string) => {
-    const map: Record<string, string> = {
-      received: "Recibido",
-      prep: "En cocina",
-      plating: "Emplatando",
-      served: "Servido",
-    };
-    return map[s] ?? s;
-  },
-  statusChip: (s: string): React.CSSProperties => {
-    const colors: Record<string, string> = {
-      received: "#60a5fa",
-      prep: "#f59e0b",
-      plating: "#a78bfa",
-      served: "#4ade80",
-    };
-    const c = colors[s] ?? "#60a5fa";
-    return {
-      fontSize: "0.72rem",
-      fontWeight: 600,
-      padding: "3px 10px",
-      borderRadius: 20,
-      background: `${c}18`,
-      color: c,
-      border: `1px solid ${c}40`,
-    };
-  },
-  step: (_done: boolean, _active: boolean): React.CSSProperties => ({
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "center",
-    zIndex: 1,
-    flex: 1,
-  }),
-  stepDot: (done: boolean, active: boolean): React.CSSProperties => ({
-    width: 32,
-    height: 32,
-    borderRadius: "50%",
-    background: done ? "#c9a84c" : "rgba(255,255,255,0.07)",
-    border: active ? "2px solid #c9a84c" : done ? "none" : "1px solid rgba(255,255,255,0.1)",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    fontSize: done ? "0.8rem" : "1rem",
-    color: done ? "#0a0a0f" : "rgba(240,237,230,0.3)",
-    fontWeight: 700,
-  }),
-  progressLine: {
-    position: "absolute" as const,
-    top: 15,
-    left: "12.5%",
-    right: "12.5%",
-    height: 2,
-    background: "rgba(255,255,255,0.08)",
-    zIndex: 0,
-  },
-  progressFill: (idx: number): React.CSSProperties => ({
-    height: "100%",
-    width: `${(idx / (KITCHEN_STEPS.length - 1)) * 100}%`,
-    background: "#c9a84c",
-    borderRadius: 2,
-    transition: "width 0.6s ease",
-  }),
-};
-
-// ── Waiter ────────────────────────────────────────────────────────────────────
-
-interface WaiterProps {
-  tableCtx: TableContext;
-  pending: boolean;
-  onCall: (reason: string) => void;
-  calling: boolean;
-}
-
-function Waiter({ pending, onCall, calling }: WaiterProps) {
-  const [selected, setSelected] = useState<string | null>(null);
-
-  if (pending) {
-    return (
-      <div style={{ padding: "60px 20px", textAlign: "center" }}>
-        <div style={{ fontSize: "3rem", marginBottom: 16, animation: "pulse 2s infinite" }}>◎</div>
-        <p style={{ fontWeight: 600, fontSize: "1.1rem", color: "#4ade80" }}>Camarero en camino</p>
-        <p style={{ color: "rgba(240,237,230,0.45)", marginTop: 8, fontSize: "0.9rem" }}>
-          Llegará en breve a tu mesa
-        </p>
-      </div>
-    );
-  }
-
-  return (
-    <div style={{ padding: "24px 20px", paddingBottom: 80 }}>
-      <p style={{ color: "rgba(240,237,230,0.55)", marginBottom: 20, fontSize: "0.9rem" }}>
-        Selecciona el motivo y confirma para avisar al servicio.
-      </p>
-      <div style={{ display: "flex", flexDirection: "column" as const, gap: 10, marginBottom: 24 }}>
-        {WAITER_REASONS.map((r) => (
-          <button key={r} onClick={() => setSelected(r)} style={waiterReason(selected === r)}>
-            {r}
-          </button>
-        ))}
-      </div>
-      <button
-        onClick={() => selected && onCall(selected)}
-        disabled={!selected || calling}
-        style={{
-          ...floatingCartBtn,
-          justifyContent: "center",
-          width: "100%",
-          background: selected ? "#4ade80" : "rgba(255,255,255,0.1)",
-          color: selected ? "#0a0a0f" : "rgba(240,237,230,0.3)",
-          opacity: calling ? 0.7 : 1,
-        }}
-      >
-        {calling ? "Llamando…" : "Llamar al camarero"}
-      </button>
-    </div>
-  );
-}
-
-function waiterReason(active: boolean): React.CSSProperties {
-  return {
-    padding: "14px 16px",
-    background: active ? "rgba(74,222,128,0.12)" : "#13131a",
-    border: active ? "1px solid rgba(74,222,128,0.4)" : "1px solid rgba(255,255,255,0.08)",
-    borderRadius: 12,
-    color: active ? "#4ade80" : "#f0ede6",
-    fontWeight: active ? 600 : 400,
-    textAlign: "left" as const,
-    fontSize: "0.9rem",
-    cursor: "pointer",
-  };
-}
-
-// ── Bill ──────────────────────────────────────────────────────────────────────
-
-interface BillProps {
-  orders: Order[];
-  tableCtx: TableContext;
-  onRequest: () => void;
-  requesting: boolean;
-  requested: boolean;
-}
-
-function Bill({ orders, onRequest, requesting, requested }: BillProps) {
-  const total = ordersTotal(orders);
-
-  return (
-    <div style={{ padding: "24px 20px", paddingBottom: 80 }}>
-      <div style={billTotal}>
-        <p style={{ color: "rgba(240,237,230,0.55)", fontSize: "0.88rem" }}>Total acumulado</p>
-        <p style={{ fontFamily: "var(--font-playfair, serif)", fontSize: "2.2rem", color: "#c9a84c", fontWeight: 700, marginTop: 4 }}>
-          {money(total)}
-        </p>
-      </div>
-
-      <div style={{ marginBottom: 24 }}>
-        {orders.map((order) => (
-          <div key={order.id} style={{ marginBottom: 14 }}>
-            <p style={{ fontSize: "0.8rem", color: "rgba(240,237,230,0.4)", marginBottom: 6 }}>
-              Pedido #{order.id.slice(-6)} · {ord.statusLabel(order.status)}
-            </p>
-            {order.items.map(({ item, qty }) => (
-              <div key={item.id} style={{ display: "flex", justifyContent: "space-between", fontSize: "0.88rem", padding: "5px 0", borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
-                <span>{qty}× {item.name}</span>
-                <span style={{ color: "#c9a84c" }}>{money(item.price * qty)}</span>
-              </div>
-            ))}
-          </div>
-        ))}
-      </div>
-
-      {requested ? (
-        <div style={{ textAlign: "center", padding: "20px", background: "rgba(74,222,128,0.08)", borderRadius: 14, border: "1px solid rgba(74,222,128,0.2)" }}>
-          <p style={{ fontSize: "1.5rem", marginBottom: 8 }}>✓</p>
-          <p style={{ color: "#4ade80", fontWeight: 600 }}>Cuenta solicitada</p>
-          <p style={{ color: "rgba(240,237,230,0.45)", fontSize: "0.85rem", marginTop: 4 }}>El camarero llegará en breve con el cobro.</p>
-        </div>
-      ) : (
-        <button
-          onClick={onRequest}
-          disabled={requesting || total === 0}
-          style={{
-            ...floatingCartBtn,
-            justifyContent: "center",
-            width: "100%",
-            background: total > 0 ? "#c9a84c" : "rgba(255,255,255,0.1)",
-            color: total > 0 ? "#0a0a0f" : "rgba(240,237,230,0.3)",
-            opacity: requesting ? 0.7 : 1,
-          }}
-        >
-          {requesting ? "Solicitando…" : "Solicitar la cuenta"}
-        </button>
-      )}
-    </div>
-  );
-}
-
-const billTotal: React.CSSProperties = {
-  background: "#13131a",
-  border: "1px solid rgba(255,255,255,0.07)",
-  borderRadius: 16,
-  padding: "20px",
-  textAlign: "center",
-  marginBottom: 24,
-};
-
-// ── Feedback ──────────────────────────────────────────────────────────────────
-
-interface FeedbackProps {
-  tableCtx: TableContext;
-  onSubmit: (rating: number, comment: string) => void;
-  submitting: boolean;
-  submitted: boolean;
-}
-
-function Feedback({ onSubmit, submitting, submitted }: FeedbackProps) {
-  const [rating, setRating] = useState(0);
-  const [comment, setComment] = useState("");
-
-  if (submitted) {
-    return (
-      <div style={{ padding: "60px 20px", textAlign: "center" }}>
-        <p style={{ fontSize: "3rem", marginBottom: 16 }}>⭐</p>
-        <p style={{ fontWeight: 600, fontSize: "1.1rem", color: "#c9a84c" }}>¡Gracias por tu opinión!</p>
-        <p style={{ color: "rgba(240,237,230,0.45)", marginTop: 8 }}>Nos ayuda a mejorar cada día.</p>
-        <a
-          href="https://g.page/r/review"
-          target="_blank"
-          rel="noopener noreferrer"
-          style={{
-            display: "inline-block",
-            marginTop: 24,
-            padding: "12px 24px",
-            background: "rgba(201,168,76,0.12)",
-            color: "#c9a84c",
-            border: "1px solid rgba(201,168,76,0.3)",
-            borderRadius: 12,
-            fontWeight: 600,
-            fontSize: "0.9rem",
-          }}
-        >
-          Dejar reseña en Google ↗
-        </a>
-      </div>
-    );
-  }
-
-  return (
-    <div style={{ padding: "24px 20px", paddingBottom: 80 }}>
-      <p style={{ color: "rgba(240,237,230,0.55)", marginBottom: 24, fontSize: "0.9rem" }}>
-        ¿Cómo ha sido tu experiencia?
-      </p>
-
-      <div style={{ display: "flex", justifyContent: "center", gap: 12, marginBottom: 28 }}>
-        {[1, 2, 3, 4, 5].map((n) => (
-          <button
-            key={n}
-            onClick={() => setRating(n)}
-            style={{
-              fontSize: "2.2rem",
-              opacity: n <= rating ? 1 : 0.25,
-              transition: "opacity 0.15s, transform 0.1s",
-              transform: n <= rating ? "scale(1.1)" : "scale(1)",
-            }}
-          >
-            ⭐
-          </button>
-        ))}
-      </div>
-
-      <textarea
-        placeholder="Cuéntanos qué te ha parecido (opcional)"
-        value={comment}
-        onChange={(e) => setComment(e.target.value)}
-        rows={4}
-        style={{ ...searchInput, resize: "none" as const, marginBottom: 20 }}
-      />
-
-      <button
-        onClick={() => rating > 0 && onSubmit(rating, comment)}
-        disabled={rating === 0 || submitting}
-        style={{
-          ...floatingCartBtn,
-          justifyContent: "center",
-          width: "100%",
-          background: rating > 0 ? "#c9a84c" : "rgba(255,255,255,0.1)",
-          color: rating > 0 ? "#0a0a0f" : "rgba(240,237,230,0.3)",
-          opacity: submitting ? 0.7 : 1,
-        }}
-      >
-        {submitting ? "Enviando…" : "Enviar opinión"}
-      </button>
-    </div>
-  );
-}
-
-// ── Assistant (Luca) ──────────────────────────────────────────────────────────
-
-function Assistant({ menuItems, onTab }: { menuItems: MenuItem[]; onTab: (t: Tab) => void }) {
-  const [messages, setMessages] = useState<AiMessage[]>([
-    { role: "assistant", text: "Hola, soy Luca 👋 Tu asistente de mesa. ¿En qué puedo ayudarte?" },
-  ]);
-  const [input, setInput] = useState("");
-  const bottomRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
-
-  const send = useCallback(
-    (text: string) => {
-      if (!text.trim()) return;
-      const userMsg: AiMessage = { role: "user", text };
-      const assistantText = aiReply(text, menuItems);
-
-      // Side effect: if user asks to call waiter, navigate
-      if (text.toLowerCase().includes("camarero") || text.toLowerCase().includes("llama")) {
-        setTimeout(() => onTab("waiter"), 800);
-      }
-      if (text.toLowerCase().includes("pagar") || text.toLowerCase().includes("cuenta")) {
-        setTimeout(() => onTab("bill"), 800);
-      }
-
-      setMessages((prev) => [...prev, userMsg, { role: "assistant", text: assistantText }]);
-      setInput("");
-    },
-    [menuItems, onTab]
-  );
-
-  return (
-    <div style={{ display: "flex", flexDirection: "column" as const, height: "calc(100dvh - 120px)" }}>
-      <div style={{ flex: 1, overflowY: "auto" as const, padding: "16px 20px" }}>
-        <div style={{ marginBottom: 16, display: "flex", flexWrap: "wrap" as const, gap: 8 }}>
-          {AI_QUICK_QUESTIONS.map((q) => (
-            <button key={q} onClick={() => send(q)} style={aiChip}>
-              {q}
-            </button>
-          ))}
-        </div>
-
-        {messages.map((m, i) => (
-          <div key={i} style={aiBubble(m.role)}>
-            {m.text}
-          </div>
-        ))}
-        <div ref={bottomRef} />
-      </div>
-
-      <div style={{ padding: "12px 20px", borderTop: "1px solid rgba(255,255,255,0.07)", display: "flex", gap: 10, paddingBottom: "calc(12px + env(safe-area-inset-bottom, 0px))" }}>
-        <input
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && send(input)}
-          placeholder="Escribe tu pregunta…"
-          style={{ ...searchInput, flex: 1 }}
-        />
-        <button
-          onClick={() => send(input)}
-          style={{
-            padding: "0 18px",
-            background: "#c9a84c",
-            color: "#0a0a0f",
-            borderRadius: 12,
-            fontWeight: 700,
-            fontSize: "1rem",
-          }}
-        >
-          ↑
-        </button>
-      </div>
-    </div>
-  );
-}
-
-const aiChip: React.CSSProperties = {
-  padding: "6px 12px",
-  background: "rgba(201,168,76,0.08)",
-  border: "1px solid rgba(201,168,76,0.2)",
-  borderRadius: 20,
-  color: "#c9a84c",
-  fontSize: "0.78rem",
-  cursor: "pointer",
-  whiteSpace: "nowrap",
-};
-
-function aiBubble(role: "user" | "assistant"): React.CSSProperties {
-  return {
-    maxWidth: "82%",
-    marginLeft: role === "user" ? "auto" : 0,
-    marginBottom: 10,
-    padding: "10px 14px",
-    background: role === "user" ? "rgba(201,168,76,0.15)" : "#1a1a24",
-    border: role === "user" ? "1px solid rgba(201,168,76,0.25)" : "1px solid rgba(255,255,255,0.07)",
-    borderRadius: role === "user" ? "14px 14px 4px 14px" : "14px 14px 14px 4px",
-    color: "#f0ede6",
-    fontSize: "0.88rem",
-    lineHeight: 1.55,
-  };
-}
-
-// ── Root component ────────────────────────────────────────────────────────────
+// ── Root ──────────────────────────────────────────────────────────────────────
 
 export default function GastroMesa({ qrToken }: { qrToken: string }) {
   const session = useTableSession(qrToken);
@@ -1185,137 +688,151 @@ export default function GastroMesa({ qrToken }: { qrToken: string }) {
   const [submittingFeedback, setSubmittingFeedback] = useState(false);
   const [feedbackSubmitted, setFeedbackSubmitted] = useState(false);
 
-  const handleSubmitOrder = useCallback(async () => {
+  const cartCount = useMemo(() => getCartCount(session.cart), [session.cart]);
+
+  const handleSubmitOrder = useCallback(async (note: string) => {
     if (!session.tableCtx) return;
     setSubmittingOrder(true);
-    const result = await session.submitOrder(session.cart, session.cartNote, session.tableCtx);
+    await session.submitOrder(session.cart, note, session.tableCtx);
     setSubmittingOrder(false);
-    if (result.ok) {
-      setCartOpen(false);
-      setTab("order");
-    }
+    setCartOpen(false);
+    setTab("order");
   }, [session]);
 
-  const handleCallWaiter = useCallback(
-    async (reason: string) => {
-      if (!session.tableCtx) return;
-      setCallingWaiter(true);
-      await session.callWaiter(reason, session.tableCtx);
-      setCallingWaiter(false);
-    },
-    [session]
-  );
+  const handleCallWaiter = useCallback(async (reason: string) => {
+    if (!session.tableCtx) return;
+    setCallingWaiter(true);
+    await session.callWaiter(reason, session.tableCtx);
+    setCallingWaiter(false);
+  }, [session]);
 
   const handleRequestBill = useCallback(async () => {
     if (!session.tableCtx) return;
     setRequestingBill(true);
-    const total = ordersTotal(session.orders);
+    const total = session.orders.reduce((s, o) => s + o.total, 0);
     const result = await session.requestBill(total, session.tableCtx);
     setRequestingBill(false);
     if (result.ok) setBillRequested(true);
   }, [session]);
 
-  const handleSendFeedback = useCallback(
-    async (rating: number, comment: string) => {
-      if (!session.tableCtx) return;
-      setSubmittingFeedback(true);
-      const result = await session.sendFeedback(rating, comment, session.tableCtx);
-      setSubmittingFeedback(false);
-      if (result.ok) setFeedbackSubmitted(true);
-    },
-    [session]
-  );
+  const handleSendFeedback = useCallback(async (rating: number, comment: string) => {
+    if (!session.tableCtx) return;
+    setSubmittingFeedback(true);
+    const result = await session.sendFeedback(rating, comment, session.tableCtx);
+    setSubmittingFeedback(false);
+    if (result.ok) setFeedbackSubmitted(true);
+  }, [session]);
 
-  // ── Loading / error states ──────────────────────────────────────────────
-
+  // ── Loading ────────────────────────────────────────────────────────────────
   if (session.loading) {
     return (
-      <div style={{ minHeight: "100dvh", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 16 }}>
-        <div style={{ width: 40, height: 40, border: "3px solid rgba(201,168,76,0.2)", borderTop: "3px solid #c9a84c", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
-        <p style={{ color: "rgba(240,237,230,0.45)", fontSize: "0.88rem" }}>Cargando tu mesa…</p>
-        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      <div className="app">
+        <style>{CSS}</style>
+        <main className="screen fade">
+          <section className="hero">
+            <div className="brand">{RESTAURANT.name}<small>RISTORANTE</small></div>
+            <div className="hero-copy">
+              <span className="eyebrow">Validando QR</span>
+              <h1>Preparando tu mesa</h1>
+              <p>Un momento...</p>
+            </div>
+          </section>
+        </main>
       </div>
     );
   }
 
+  // ── Error / QR inválido ────────────────────────────────────────────────────
   if (session.error || !session.tableCtx) {
     return (
-      <div style={{ minHeight: "100dvh", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 12, padding: "0 24px" }}>
-        <p style={{ fontSize: "2.5rem" }}>⚠️</p>
-        <p style={{ fontWeight: 600, textAlign: "center" }}>Mesa no encontrada</p>
-        <p style={{ color: "rgba(240,237,230,0.45)", textAlign: "center", fontSize: "0.88rem" }}>
-          {session.error ?? "El código QR no corresponde a ninguna mesa activa."}
-        </p>
+      <div className="app">
+        <style>{CSS}</style>
+        <main className="screen fade">
+          <section className="hero">
+            <div className="brand">{RESTAURANT.name}<small>RISTORANTE</small></div>
+            <div className="hero-copy">
+              <span className="eyebrow">QR no disponible</span>
+              <h1>Solicita ayuda</h1>
+              <p>Este código no está activo. Por favor avisa al camarero.</p>
+            </div>
+          </section>
+        </main>
       </div>
     );
   }
 
   const { tableCtx } = session;
-  const count = cartCount(session.cart);
 
   return (
-    <>
-      <style>{`
-        @keyframes spin { to { transform: rotate(360deg); } }
-        @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.5; } }
-      `}</style>
+    <div className="app">
+      <style>{CSS}</style>
 
-      <Header tab={tab} tableLabel={tableCtx.tableLabel} />
-
-      <main style={{ minHeight: "calc(100dvh - 56px - 62px)" }}>
-        {tab === "home" && <Home tableCtx={tableCtx} onTab={setTab} />}
-        {tab === "menu" && (
-          <Menu
-            items={session.menuItems}
-            cart={session.cart}
-            onAdd={session.addItem}
-            onRemove={session.removeItem}
-            onOpenCart={() => setCartOpen(true)}
-          />
-        )}
-        {tab === "order" && <OrderStatus orders={session.orders} />}
-        {tab === "waiter" && (
-          <Waiter
-            tableCtx={tableCtx}
-            pending={session.waiterCall.pending}
-            onCall={handleCallWaiter}
-            calling={callingWaiter}
-          />
-        )}
-        {tab === "bill" && (
-          <Bill
-            orders={session.orders}
-            tableCtx={tableCtx}
-            onRequest={handleRequestBill}
-            requesting={requestingBill}
-            requested={billRequested}
-          />
-        )}
-        {tab === "feedback" && (
-          <Feedback
-            tableCtx={tableCtx}
-            onSubmit={handleSendFeedback}
-            submitting={submittingFeedback}
-            submitted={feedbackSubmitted}
-          />
-        )}
-        {tab === "ai" && <Assistant menuItems={session.menuItems} onTab={setTab} />}
-      </main>
-
-      <Nav tab={tab} onTab={setTab} cartCount={count} />
-
-      {cartOpen && (
-        <CartDrawer
+      {tab === "home" && <Home go={setTab} orders={session.orders} qrCtx={tableCtx} />}
+      {tab === "menu" && (
+        <MenuScreen
+          items={session.menuItems}
           cart={session.cart}
-          note={session.cartNote}
-          onClose={() => setCartOpen(false)}
-          onAdd={session.addItem}
-          onRemove={session.removeItem}
-          onNoteChange={session.setCartNote}
-          onSubmit={handleSubmitOrder}
-          submitting={submittingOrder}
+          openCart={() => setCartOpen(true)}
+          addItem={session.addItem}
+          tableLabel={tableCtx.tableLabel}
         />
       )}
-    </>
+      {tab === "order" && <OrderStatus orders={session.orders} tableLabel={tableCtx.tableLabel} />}
+      {tab === "waiter" && (
+        <Waiter
+          pending={session.waiterCall.pending}
+          calling={callingWaiter}
+          tableLabel={tableCtx.tableLabel}
+          onCall={handleCallWaiter}
+        />
+      )}
+      {tab === "bill" && (
+        <Bill
+          orders={session.orders}
+          tableLabel={tableCtx.tableLabel}
+          qrCtx={tableCtx}
+          onRequest={handleRequestBill}
+          requesting={requestingBill}
+          requested={billRequested}
+        />
+      )}
+      {tab === "feedback" && (
+        <Feedback
+          tableLabel={tableCtx.tableLabel}
+          qrCtx={tableCtx}
+          onSubmit={handleSendFeedback}
+          submitting={submittingFeedback}
+          submitted={feedbackSubmitted}
+        />
+      )}
+      {tab === "ai" && (
+        <Assistant
+          menuItems={session.menuItems}
+          go={setTab}
+          callWaiter={(r) => void handleCallWaiter(r)}
+        />
+      )}
+
+      {/* Floating AI button */}
+      <button
+        className="btn primary"
+        style={{ position: "fixed", right: 16, bottom: 92, zIndex: 22, width: 54, height: 54, borderRadius: 20, padding: 0 }}
+        onClick={() => setTab("ai")}
+      >
+        {icons.spark}
+      </button>
+
+      <CartDrawer
+        open={cartOpen}
+        setOpen={setCartOpen}
+        cart={session.cart}
+        addItem={session.addItem}
+        removeItem={session.removeItem}
+        onSubmit={handleSubmitOrder}
+        submitting={submittingOrder}
+      />
+
+      <Nav tab={tab} setTab={setTab} cartCount={cartCount} />
+    </div>
   );
 }
