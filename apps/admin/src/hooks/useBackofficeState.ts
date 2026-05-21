@@ -58,436 +58,7 @@ function randomToken() {
   return Math.random().toString(36).substring(2, 8).toUpperCase();
 }
 
-export function useBackofficeState(): BackofficeState {
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [calls, setCalls] = useState<Call[]>([]);
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [tables, setTables] = useState<Table[]>([]);
-  const [staff, setStaff] = useState<StaffMember[]>([]);
-  const [cashSession, setCashSession] = useState<CashSession>(INITIAL_CASH_SESSION);
-  const [inventory, setInventory] = useState<InventoryItem[]>([]);
-  const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
-  const [expenses, setExpenses] = useState<Expense[]>([]);
-  const [reviews, setReviews] = useState<Review[]>([]);
-  const [demoMode, setDemoMode] = useState(false);
-  const [qrTokens, setQrTokens] = useState<QrToken[]>([]);
-
-  const supabaseAvailable = useRef(
-    !!(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)
-  );
-
-  // Load all data from Supabase on mount
-  useEffect(() => {
-    if (!supabaseAvailable.current) return;
-
-    // Orders: two queries because order_items FK was dropped (PostgREST needs FK for nested selects)
-    supabase.from("orders").select("*").order("created_at", { ascending: false }).limit(200)
-      .then(async ({ data: ordersData, error }) => {
-        if (error) { console.error("orders load error", error); return; }
-        if (!ordersData?.length) return;
-        const ids = ordersData.map((o) => o.id as string);
-        const { data: itemsData } = await supabase.from("order_items").select("*").in("order_id", ids);
-        const itemsByOrder: Record<string, Record<string, unknown>[]> = {};
-        for (const item of (itemsData ?? []) as Record<string, unknown>[]) {
-          const oid = item.order_id as string;
-          if (!itemsByOrder[oid]) itemsByOrder[oid] = [];
-          itemsByOrder[oid].push(item);
-        }
-        setOrders(ordersData.map((o) => ({
-          ...mapDbOrder(o as Record<string, unknown>),
-          items: (itemsByOrder[o.id as string] ?? []).map(mapDbOrderItem),
-        })));
-      });
-
-    supabase.from("calls").select("*").order("created_at", { ascending: false }).limit(100)
-      .then(({ data }) => { if (data) setCalls(data.map(mapDbCall)); });
-
-    supabase.from("messages").select("*").order("created_at", { ascending: false }).limit(100)
-      .then(({ data }) => { if (data) setMessages(data.map(mapDbMessage)); });
-
-    supabase.from("tables").select("*").order("id")
-      .then(({ data, error }) => {
-        if (error) console.error("tables load error", error);
-        if (data?.length) {
-          setTables(data.map(mapDbTable));
-          setQrTokens(data.map((r) => ({ tableId: r.id as number, token: r.qr_token as string, active: r.active as boolean })));
-        }
-      });
-
-    supabase.from("staff").select("*").order("name")
-      .then(({ data }) => { if (data?.length) setStaff(data.map(mapDbStaff)); });
-
-    supabase.from("menu_items").select("*").eq("available", true).order("category")
-      .then(({ data }) => { if (data?.length) setMenuItems(data.map(mapDbMenuItem)); });
-
-    supabase.from("reviews").select("*").order("created_at", { ascending: false }).limit(50)
-      .then(({ data }) => { if (data) setReviews(data.map(mapDbReview)); });
-
-    supabase.from("inventory").select("*").order("name")
-      .then(({ data }) => { if (data?.length) setInventory(data.map(mapDbInventory)); });
-  }, []);
-
-  useEffect(() => {
-    if (!supabaseAvailable.current) return;
-
-    const ordersChannel = supabase
-      .channel("orders-realtime")
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "orders" }, (payload) => {
-        const r = payload.new as Record<string, unknown>;
-        // Items arrive separately via order_items subscription; start with []
-        setOrders((prev) => {
-          if (prev.find((o) => o.id === r.id)) return prev;
-          return [mapDbOrder(r), ...prev];
-        });
-      })
-      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "orders" }, (payload) => {
-        const r = payload.new as Record<string, unknown>;
-        setOrders((prev) =>
-          prev.map((o) => (o.id === r.id ? { ...o, status: r.status as OrderStatus, total: (r.total as number) ?? o.total } : o))
-        );
-      })
-      .on("postgres_changes", { event: "DELETE", schema: "public", table: "orders" }, (payload) => {
-        const r = payload.old as Record<string, unknown>;
-        setOrders((prev) => prev.filter((o) => o.id !== r.id));
-      })
-      .subscribe((status) => {
-        if (status === "CHANNEL_ERROR") console.error("orders realtime error");
-      });
-
-    // order_items arrive after the order — append them as they come in
-    const orderItemsChannel = supabase
-      .channel("order-items-realtime")
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "order_items" }, (payload) => {
-        const r = payload.new as Record<string, unknown>;
-        const item = mapDbOrderItem(r);
-        setOrders((prev) =>
-          prev.map((o) =>
-            o.id === (r.order_id as string)
-              ? { ...o, items: [...o.items, item] }
-              : o
-          )
-        );
-      })
-      .subscribe();
-
-    const callsChannel = supabase
-      .channel("calls-realtime")
-      .on("postgres_changes", { event: "*", schema: "public", table: "calls" }, (payload) => {
-        if (payload.eventType === "INSERT") {
-          const r = payload.new as Record<string, unknown>;
-          setCalls((prev) => {
-            if (prev.find((c) => c.id === r.id)) return prev;
-            return [mapDbCall(r), ...prev];
-          });
-        } else if (payload.eventType === "UPDATE") {
-          const r = payload.new as Record<string, unknown>;
-          setCalls((prev) =>
-            prev.map((c) =>
-              c.id === r.id ? { ...c, status: r.status as Call["status"] } : c
-            )
-          );
-        }
-      })
-      .subscribe();
-
-    const messagesChannel = supabase
-      .channel("messages-realtime")
-      .on("postgres_changes", { event: "*", schema: "public", table: "messages" }, (payload) => {
-        if (payload.eventType === "INSERT") {
-          const r = payload.new as Record<string, unknown>;
-          setMessages((prev) => {
-            if (prev.find((m) => m.id === r.id)) return prev;
-            return [...prev, mapDbMessage(r)];
-          });
-        } else if (payload.eventType === "UPDATE") {
-          const r = payload.new as Record<string, unknown>;
-          setMessages((prev) =>
-            prev.map((m) => (m.id === r.id ? { ...m, status: r.status as string } : m))
-          );
-        }
-      })
-      .subscribe();
-
-    const tablesChannel = supabase
-      .channel("tables-realtime")
-      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "tables" }, (payload) => {
-        const r = payload.new as Record<string, unknown>;
-        setTables((prev) =>
-          prev.map((t) =>
-            t.id === r.id
-              ? {
-                  ...t,
-                  status: (r.status as Table["status"]) ?? t.status,
-                  guests: (r.guests as number) ?? t.guests,
-                  bill: (r.bill_total as number) ?? t.bill,
-                }
-              : t
-          )
-        );
-      })
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(ordersChannel);
-      supabase.removeChannel(orderItemsChannel);
-      supabase.removeChannel(callsChannel);
-      supabase.removeChannel(messagesChannel);
-      supabase.removeChannel(tablesChannel);
-    };
-  }, []);
-
-  const updateOrderStatus = useCallback(
-    async (orderId: string, status: OrderStatus) => {
-      setOrders((prev) => prev.map((o) => (o.id === orderId ? { ...o, status } : o)));
-      if (!supabaseAvailable.current) return;
-      await supabase
-        .from("orders")
-        .update({ status, updated_at: new Date().toISOString() })
-        .eq("id", orderId);
-    },
-    []
-  );
-
-  const attendCall = useCallback((callId: string) => {
-    setCalls((prev) =>
-      prev.map((c) => (c.id === callId ? { ...c, status: "En atención" } : c))
-    );
-    if (!supabaseAvailable.current) return;
-    supabase.from("calls").update({ status: "En atención" }).eq("id", callId);
-  }, []);
-
-  const resolveCall = useCallback((callId: string) => {
-    setCalls((prev) =>
-      prev.map((c) => (c.id === callId ? { ...c, status: "Resuelto" } : c))
-    );
-    if (!supabaseAvailable.current) return;
-    supabase
-      .from("calls")
-      .update({ status: "Resuelto", resolved_at: new Date().toISOString() })
-      .eq("id", callId);
-  }, []);
-
-  const resolveMessage = useCallback((msgId: number) => {
-    setMessages((prev) =>
-      prev.map((m) => (m.id === msgId ? { ...m, status: "resuelto" } : m))
-    );
-    if (!supabaseAvailable.current) return;
-    supabase.from("messages").update({ status: "resuelto" }).eq("id", msgId);
-  }, []);
-
-  const assignWaiter = useCallback((tableId: number, waiterId: string) => {
-    setTables((prev) =>
-      prev.map((t) => (t.id === tableId ? { ...t, waiterId } : t))
-    );
-    if (!supabaseAvailable.current) return;
-    supabase.from("tables").update({ waiter_id: waiterId }).eq("id", tableId);
-  }, []);
-
-  const setTableTip = useCallback((tableId: number, accepted: boolean, suggestedAmount: number) => {
-    const tipAmount = accepted ? suggestedAmount : 0;
-    setTables((prev) =>
-      prev.map((t) =>
-        t.id === tableId ? { ...t, tipAccepted: accepted, tipAmount } : t
-      )
-    );
-    if (!supabaseAvailable.current) return;
-    supabase.from("tables").update({ tip_accepted: accepted, tip_amount: tipAmount }).eq("id", tableId);
-  }, []);
-
-  const closeTable = useCallback(async (tableId: number, paymentMethod: "cash" | "card" | "transfer", amount: number, tipAmount: number) => {
-    setTables((prev) => prev.map((t) =>
-      t.id === tableId ? { ...t, status: "Libre" as Table["status"], bill: 0, guests: 0, waiterId: null, tipAccepted: false } : t
-    ));
-    setOrders((prev) => prev.map((o) =>
-      o.tableId === tableId && ["received", "prep", "plating"].includes(o.status)
-        ? { ...o, status: "served" as OrderStatus }
-        : o
-    ));
-    setCashSession((prev) => ({
-      ...prev,
-      [paymentMethod]: prev[paymentMethod] + amount,
-      tips: prev.tips + tipAmount,
-    }));
-
-    if (!supabaseAvailable.current) return;
-
-    await supabase.from("orders")
-      .update({ status: "served", updated_at: new Date().toISOString() })
-      .eq("table_id", tableId)
-      .in("status", ["received", "prep", "plating"]);
-
-    await supabase.from("tables")
-      .update({ status: "Libre", bill_total: 0, guests: 0, waiter_id: null, tip_accepted: false, tip_amount: 0 })
-      .eq("id", tableId);
-  }, []);
-
-  const saveMenuItem = useCallback((item: MenuItem) => {
-    setMenuItems((prev) => {
-      const exists = prev.find((m) => m.id === item.id);
-      if (exists) return prev.map((m) => (m.id === item.id ? item : m));
-      return [...prev, item];
-    });
-    if (!supabaseAvailable.current) return;
-    supabase.from("menu_items").upsert({
-      id: item.id,
-      name: item.name,
-      subtitle: item.subtitle,
-      description: item.description,
-      category: item.category,
-      price: item.price,
-      avg_prep_minutes: item.avgPrepMinutes,
-      kcal: item.kcal,
-      tags: item.tags,
-      allergens: item.allergens,
-      wine_pair: item.winePair,
-      image_url: item.imageUrl,
-      stock_status: item.stockStatus,
-      available: item.available,
-      visible_client: item.visibleClient,
-    });
-  }, []);
-
-  const toggleMenuAvailability = useCallback((itemId: string) => {
-    let nextAvailable = true;
-    setMenuItems((prev) => {
-      const updated = prev.map((m) => {
-        if (m.id === itemId) {
-          nextAvailable = !m.available;
-          return { ...m, available: nextAvailable };
-        }
-        return m;
-      });
-      return updated;
-    });
-    if (!supabaseAvailable.current) return;
-    supabase.from("menu_items").update({ available: nextAvailable }).eq("id", itemId);
-  }, []);
-
-  const deleteMenuItem = useCallback((itemId: string) => {
-    setMenuItems((prev) => prev.filter((m) => m.id !== itemId));
-    if (!supabaseAvailable.current) return;
-    supabase.from("menu_items").delete().eq("id", itemId);
-  }, []);
-
-  const openCash = useCallback((userId: string) => {
-    const now = new Date();
-    const session: CashSession = {
-      id: `SHIFT-${now.toISOString().split("T")[0]}-${Date.now()}`,
-      status: "abierta",
-      openedAt: now.toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" }),
-      turn: "Noche",
-      openedBy: userId,
-      openingCash: 150000,
-      cash: 0,
-      card: 0,
-      transfer: 0,
-      tips: 0,
-      expenses: 0,
-    };
-    setCashSession(session);
-  }, []);
-
-  const closeCash = useCallback(() => {
-    setCashSession((prev) => ({ ...prev, status: "cerrada" }));
-    if (!supabaseAvailable.current) return;
-    supabase
-      .from("cash_sessions")
-      .update({ status: "closed", closed_at: new Date().toISOString() })
-      .eq("id", cashSession.id);
-  }, [cashSession.id]);
-
-  const changeTurn = useCallback((turn: string) => {
-    setCashSession((prev) => ({ ...prev, turn }));
-  }, []);
-
-  const addExpense = useCallback((type: string, detail: string, amount: number) => {
-    const expense: Expense = {
-      id: `exp-${Date.now()}`,
-      type,
-      detail,
-      amount,
-      createdAt: Date.now(),
-    };
-    setExpenses((prev) => [...prev, expense]);
-    setCashSession((prev) => ({ ...prev, expenses: prev.expenses + amount }));
-  }, []);
-
-  const updateInventoryStock = useCallback((itemId: string, qty: number) => {
-    let newStock = 0;
-    setInventory((prev) => {
-      const updated = prev.map((i) => {
-        if (i.id === itemId) {
-          newStock = Math.max(0, i.stock + qty);
-          return { ...i, stock: newStock };
-        }
-        return i;
-      });
-      return updated;
-    });
-    if (!supabaseAvailable.current) return;
-    supabase.from("inventory").update({ stock: newStock }).eq("id", itemId);
-  }, []);
-
-  const toggleQr = useCallback((tableId: number) => {
-    setQrTokens((prev) =>
-      prev.map((q) => (q.tableId === tableId ? { ...q, active: !q.active } : q))
-    );
-  }, []);
-
-  const regenerateQr = useCallback((tableId: number) => {
-    const token = randomToken();
-    setQrTokens((prev) =>
-      prev.map((q) => (q.tableId === tableId ? { ...q, token, active: true } : q))
-    );
-    setTables((prev) =>
-      prev.map((t) => (t.id === tableId ? { ...t, qrToken: token } : t))
-    );
-    if (!supabaseAvailable.current) return;
-    supabase.from("tables").update({ qr_token: token }).eq("id", tableId);
-  }, []);
-
-  const saveStaffAvatar = useCallback((staffId: string, url: string) => {
-    setStaff((prev) =>
-      prev.map((s) => (s.id === staffId ? { ...s, avatarUrl: url } : s))
-    );
-    if (!supabaseAvailable.current) return;
-    supabase.from("staff").update({ avatar_url: url }).eq("id", staffId);
-  }, []);
-
-  return {
-    orders,
-    calls,
-    messages,
-    tables,
-    staff,
-    cashSession,
-    inventory,
-    menuItems,
-    expenses,
-    reviews,
-    qrTokens,
-    demoMode,
-    setDemoMode,
-    updateOrderStatus,
-    closeTable,
-    attendCall,
-    resolveCall,
-    resolveMessage,
-    assignWaiter,
-    setTableTip,
-    saveMenuItem,
-    toggleMenuAvailability,
-    deleteMenuItem,
-    openCash,
-    closeCash,
-    changeTurn,
-    addExpense,
-    updateInventoryStock,
-    saveStaffAvatar,
-    toggleQr,
-    regenerateQr,
-  };
-}
+// ─── mappers ────────────────────────────────────────────────────────────────
 
 function mapDbOrderItem(r: Record<string, unknown>): OrderItem {
   const statusMap: Record<string, string> = {
@@ -518,7 +89,6 @@ function mapDbOrder(r: Record<string, unknown>): Order {
     total: (r.total as number) ?? 0,
   };
 }
-
 
 function mapDbCall(r: Record<string, unknown>): Call {
   return {
@@ -613,5 +183,399 @@ function mapDbInventory(r: Record<string, unknown>): InventoryItem {
     minStock: Number(r.min_stock ?? 0),
     unit: (r.unit as string) ?? "kg",
     linkedDishes: (r.linked_dishes as string[]) ?? [],
+  };
+}
+
+// ─── hook ───────────────────────────────────────────────────────────────────
+
+export function useBackofficeState(): BackofficeState {
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [calls, setCalls] = useState<Call[]>([]);
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [tables, setTables] = useState<Table[]>([]);
+  const [staff, setStaff] = useState<StaffMember[]>([]);
+  const [cashSession, setCashSession] = useState<CashSession>(INITIAL_CASH_SESSION);
+  const [inventory, setInventory] = useState<InventoryItem[]>([]);
+  const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
+  const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [reviews, setReviews] = useState<Review[]>([]);
+  const [demoMode, setDemoMode] = useState(false);
+  const [qrTokens, setQrTokens] = useState<QrToken[]>([]);
+
+  const supabaseAvailable = useRef(
+    !!(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)
+  );
+
+  // ─── polling: orders + items ─────────────────────────────────────────────
+  // order_items may not be in supabase_realtime publication, so we poll.
+  // Fires on mount (immediate) and every 10 s.
+  useEffect(() => {
+    if (!supabaseAvailable.current) return;
+
+    async function refreshOrders() {
+      const { data: ordersData, error } = await supabase
+        .from("orders")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(200);
+      if (error || !ordersData) return;
+
+      const ids = ordersData.map((o) => o.id as string);
+      const { data: itemsData } = ids.length
+        ? await supabase.from("order_items").select("*").in("order_id", ids)
+        : { data: [] };
+
+      const byOrder: Record<string, Record<string, unknown>[]> = {};
+      for (const item of (itemsData ?? []) as Record<string, unknown>[]) {
+        const oid = item.order_id as string;
+        if (!byOrder[oid]) byOrder[oid] = [];
+        byOrder[oid].push(item);
+      }
+
+      setOrders(
+        ordersData.map((o) => ({
+          ...mapDbOrder(o as Record<string, unknown>),
+          items: (byOrder[o.id as string] ?? []).map(mapDbOrderItem),
+        }))
+      );
+    }
+
+    refreshOrders();
+    const interval = setInterval(refreshOrders, 10_000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // ─── polling: tables ─────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!supabaseAvailable.current) return;
+
+    async function refreshTables() {
+      const { data } = await supabase.from("tables").select("*").order("id");
+      if (!data?.length) return;
+      setTables(data.map(mapDbTable));
+      setQrTokens(
+        data.map((r) => ({
+          tableId: r.id as number,
+          token: r.qr_token as string,
+          active: r.active as boolean,
+        }))
+      );
+    }
+
+    refreshTables();
+    const interval = setInterval(refreshTables, 10_000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // ─── polling: calls ──────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!supabaseAvailable.current) return;
+
+    async function refreshCalls() {
+      const { data } = await supabase
+        .from("calls")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(100);
+      if (data) setCalls(data.map(mapDbCall));
+    }
+
+    refreshCalls();
+    const interval = setInterval(refreshCalls, 10_000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // ─── one-time loads (less time-sensitive) ────────────────────────────────
+  useEffect(() => {
+    if (!supabaseAvailable.current) return;
+
+    supabase.from("messages").select("*").order("created_at", { ascending: false }).limit(100)
+      .then(({ data }) => { if (data) setMessages(data.map(mapDbMessage)); });
+
+    supabase.from("staff").select("*").order("name")
+      .then(({ data }) => { if (data?.length) setStaff(data.map(mapDbStaff)); });
+
+    supabase.from("menu_items").select("*").eq("available", true).order("category")
+      .then(({ data }) => { if (data?.length) setMenuItems(data.map(mapDbMenuItem)); });
+
+    supabase.from("reviews").select("*").order("created_at", { ascending: false }).limit(50)
+      .then(({ data }) => { if (data) setReviews(data.map(mapDbReview)); });
+
+    supabase.from("inventory").select("*").order("name")
+      .then(({ data }) => { if (data?.length) setInventory(data.map(mapDbInventory)); });
+  }, []);
+
+  // ─── realtime (instant supplements to polling) ───────────────────────────
+  useEffect(() => {
+    if (!supabaseAvailable.current) return;
+
+    // Orders — instant status updates from admin actions
+    const ordersChannel = supabase
+      .channel("orders-rt")
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "orders" }, (payload) => {
+        const r = payload.new as Record<string, unknown>;
+        setOrders((prev) =>
+          prev.map((o) =>
+            o.id === r.id
+              ? { ...o, status: r.status as OrderStatus, total: (r.total as number) ?? o.total }
+              : o
+          )
+        );
+      })
+      .subscribe();
+
+    // Calls — instant notifications when mesa calls
+    const callsChannel = supabase
+      .channel("calls-rt")
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "calls" }, (payload) => {
+        const r = payload.new as Record<string, unknown>;
+        setCalls((prev) => {
+          if (prev.find((c) => c.id === r.id)) return prev;
+          return [mapDbCall(r), ...prev];
+        });
+      })
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "calls" }, (payload) => {
+        const r = payload.new as Record<string, unknown>;
+        setCalls((prev) =>
+          prev.map((c) => (c.id === r.id ? { ...c, status: r.status as Call["status"] } : c))
+        );
+      })
+      .subscribe();
+
+    // Messages — instant chat
+    const messagesChannel = supabase
+      .channel("messages-rt")
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages" }, (payload) => {
+        const r = payload.new as Record<string, unknown>;
+        setMessages((prev) => {
+          if (prev.find((m) => m.id === r.id)) return prev;
+          return [...prev, mapDbMessage(r)];
+        });
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(ordersChannel);
+      supabase.removeChannel(callsChannel);
+      supabase.removeChannel(messagesChannel);
+    };
+  }, []);
+
+  // ─── actions ─────────────────────────────────────────────────────────────
+
+  const updateOrderStatus = useCallback(async (orderId: string, status: OrderStatus) => {
+    setOrders((prev) => prev.map((o) => (o.id === orderId ? { ...o, status } : o)));
+    if (!supabaseAvailable.current) return;
+    await supabase.from("orders").update({ status, updated_at: new Date().toISOString() }).eq("id", orderId);
+  }, []);
+
+  const attendCall = useCallback((callId: string) => {
+    setCalls((prev) => prev.map((c) => (c.id === callId ? { ...c, status: "En atención" } : c)));
+    if (!supabaseAvailable.current) return;
+    supabase.from("calls").update({ status: "En atención" }).eq("id", callId);
+  }, []);
+
+  const resolveCall = useCallback((callId: string) => {
+    setCalls((prev) => prev.map((c) => (c.id === callId ? { ...c, status: "Resuelto" } : c)));
+    if (!supabaseAvailable.current) return;
+    supabase.from("calls").update({ status: "Resuelto", resolved_at: new Date().toISOString() }).eq("id", callId);
+  }, []);
+
+  const resolveMessage = useCallback((msgId: number) => {
+    setMessages((prev) => prev.map((m) => (m.id === msgId ? { ...m, status: "resuelto" } : m)));
+    if (!supabaseAvailable.current) return;
+    supabase.from("messages").update({ status: "resuelto" }).eq("id", msgId);
+  }, []);
+
+  const assignWaiter = useCallback((tableId: number, waiterId: string) => {
+    setTables((prev) => prev.map((t) => (t.id === tableId ? { ...t, waiterId } : t)));
+    if (!supabaseAvailable.current) return;
+    supabase.from("tables").update({ waiter_id: waiterId }).eq("id", tableId);
+  }, []);
+
+  const setTableTip = useCallback((tableId: number, accepted: boolean, suggestedAmount: number) => {
+    const tipAmount = accepted ? suggestedAmount : 0;
+    setTables((prev) =>
+      prev.map((t) => (t.id === tableId ? { ...t, tipAccepted: accepted, tipAmount } : t))
+    );
+    if (!supabaseAvailable.current) return;
+    supabase.from("tables").update({ tip_accepted: accepted, tip_amount: tipAmount }).eq("id", tableId);
+  }, []);
+
+  const closeTable = useCallback(async (tableId: number, paymentMethod: "cash" | "card" | "transfer", amount: number, tipAmount: number) => {
+    setTables((prev) =>
+      prev.map((t) =>
+        t.id === tableId ? { ...t, status: "Libre" as Table["status"], bill: 0, guests: 0, waiterId: null } : t
+      )
+    );
+    setOrders((prev) =>
+      prev.map((o) =>
+        o.tableId === tableId && ["received", "prep", "plating"].includes(o.status)
+          ? { ...o, status: "served" as OrderStatus }
+          : o
+      )
+    );
+    setCashSession((prev) => ({
+      ...prev,
+      [paymentMethod]: prev[paymentMethod] + amount,
+      tips: prev.tips + tipAmount,
+    }));
+    if (!supabaseAvailable.current) return;
+    await supabase
+      .from("orders")
+      .update({ status: "served", updated_at: new Date().toISOString() })
+      .eq("table_id", tableId)
+      .in("status", ["received", "prep", "plating"]);
+    await supabase
+      .from("tables")
+      .update({ status: "Libre", bill_total: 0, guests: 0, waiter_id: null, tip_accepted: false, tip_amount: 0 })
+      .eq("id", tableId);
+  }, []);
+
+  const saveMenuItem = useCallback((item: MenuItem) => {
+    setMenuItems((prev) => {
+      const exists = prev.find((m) => m.id === item.id);
+      return exists ? prev.map((m) => (m.id === item.id ? item : m)) : [...prev, item];
+    });
+    if (!supabaseAvailable.current) return;
+    supabase.from("menu_items").upsert({
+      id: item.id,
+      name: item.name,
+      subtitle: item.subtitle,
+      description: item.description,
+      category: item.category,
+      price: item.price,
+      avg_prep_minutes: item.avgPrepMinutes,
+      kcal: item.kcal,
+      tags: item.tags,
+      allergens: item.allergens,
+      wine_pair: item.winePair,
+      image_url: item.imageUrl,
+      stock_status: item.stockStatus,
+      available: item.available,
+      visible_client: item.visibleClient,
+    });
+  }, []);
+
+  const toggleMenuAvailability = useCallback((itemId: string) => {
+    let nextAvailable = true;
+    setMenuItems((prev) =>
+      prev.map((m) => {
+        if (m.id === itemId) {
+          nextAvailable = !m.available;
+          return { ...m, available: nextAvailable };
+        }
+        return m;
+      })
+    );
+    if (!supabaseAvailable.current) return;
+    supabase.from("menu_items").update({ available: nextAvailable }).eq("id", itemId);
+  }, []);
+
+  const deleteMenuItem = useCallback((itemId: string) => {
+    setMenuItems((prev) => prev.filter((m) => m.id !== itemId));
+    if (!supabaseAvailable.current) return;
+    supabase.from("menu_items").delete().eq("id", itemId);
+  }, []);
+
+  const openCash = useCallback((userId: string) => {
+    const now = new Date();
+    setCashSession({
+      id: `SHIFT-${now.toISOString().split("T")[0]}-${Date.now()}`,
+      status: "abierta",
+      openedAt: now.toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" }),
+      turn: "Noche",
+      openedBy: userId,
+      openingCash: 150000,
+      cash: 0,
+      card: 0,
+      transfer: 0,
+      tips: 0,
+      expenses: 0,
+    });
+  }, []);
+
+  const closeCash = useCallback(() => {
+    setCashSession((prev) => ({ ...prev, status: "cerrada" }));
+    if (!supabaseAvailable.current) return;
+    supabase.from("cash_sessions").update({ status: "closed", closed_at: new Date().toISOString() }).eq("id", cashSession.id);
+  }, [cashSession.id]);
+
+  const changeTurn = useCallback((turn: string) => {
+    setCashSession((prev) => ({ ...prev, turn }));
+  }, []);
+
+  const addExpense = useCallback((type: string, detail: string, amount: number) => {
+    setExpenses((prev) => [...prev, { id: `exp-${Date.now()}`, type, detail, amount, createdAt: Date.now() }]);
+    setCashSession((prev) => ({ ...prev, expenses: prev.expenses + amount }));
+  }, []);
+
+  const updateInventoryStock = useCallback((itemId: string, qty: number) => {
+    let newStock = 0;
+    setInventory((prev) =>
+      prev.map((i) => {
+        if (i.id === itemId) {
+          newStock = Math.max(0, i.stock + qty);
+          return { ...i, stock: newStock };
+        }
+        return i;
+      })
+    );
+    if (!supabaseAvailable.current) return;
+    supabase.from("inventory").update({ stock: newStock }).eq("id", itemId);
+  }, []);
+
+  const toggleQr = useCallback((tableId: number) => {
+    setQrTokens((prev) =>
+      prev.map((q) => (q.tableId === tableId ? { ...q, active: !q.active } : q))
+    );
+  }, []);
+
+  const regenerateQr = useCallback((tableId: number) => {
+    const token = randomToken();
+    setQrTokens((prev) => prev.map((q) => (q.tableId === tableId ? { ...q, token, active: true } : q)));
+    setTables((prev) => prev.map((t) => (t.id === tableId ? { ...t, qrToken: token } : t)));
+    if (!supabaseAvailable.current) return;
+    supabase.from("tables").update({ qr_token: token }).eq("id", tableId);
+  }, []);
+
+  const saveStaffAvatar = useCallback((staffId: string, url: string) => {
+    setStaff((prev) => prev.map((s) => (s.id === staffId ? { ...s, avatarUrl: url } : s)));
+    if (!supabaseAvailable.current) return;
+    supabase.from("staff").update({ avatar_url: url }).eq("id", staffId);
+  }, []);
+
+  return {
+    orders,
+    calls,
+    messages,
+    tables,
+    staff,
+    cashSession,
+    inventory,
+    menuItems,
+    expenses,
+    reviews,
+    qrTokens,
+    demoMode,
+    setDemoMode,
+    updateOrderStatus,
+    closeTable,
+    attendCall,
+    resolveCall,
+    resolveMessage,
+    assignWaiter,
+    setTableTip,
+    saveMenuItem,
+    toggleMenuAvailability,
+    deleteMenuItem,
+    openCash,
+    closeCash,
+    changeTurn,
+    addExpense,
+    updateInventoryStock,
+    saveStaffAvatar,
+    toggleQr,
+    regenerateQr,
   };
 }
