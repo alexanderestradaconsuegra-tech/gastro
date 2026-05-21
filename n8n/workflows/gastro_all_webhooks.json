@@ -61,7 +61,7 @@
     {
       "parameters": {
         "method": "PATCH",
-        "url": "=https://nlwrkumlrudfgsdnhfhw.supabase.co/rest/v1/tables?qr_token=eq.{{ $('Validate Order').item.json.qr_token }}",
+        "url": "=https://nlwrkumlrudfgsdnhfhw.supabase.co/rest/v1/tables?qr_token=eq.{{ $('Validate Order').first().json.qr_token }}",
         "authentication": "none",
         "sendHeaders": true,
         "headerParameters": { "parameters": [
@@ -78,7 +78,7 @@
       "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [600, 200]
     },
     {
-      "parameters": { "respondWith": "json", "responseBody": "={\"ok\":true,\"orderId\":\"{{ $('Validate Order').item.json.orderId }}\"}", "options": { "responseCode": 201 } },
+      "parameters": { "respondWith": "json", "responseBody": "={{ JSON.stringify({ok: true, orderId: $('Validate Order').first().json.orderId}) }}", "options": { "responseCode": 201 } },
       "id": "respond-order", "name": "Respond - Order OK",
       "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [800, 200]
     },
@@ -117,7 +117,7 @@
     {
       "parameters": {
         "method": "PATCH",
-        "url": "=https://nlwrkumlrudfgsdnhfhw.supabase.co/rest/v1/tables?qr_token=eq.{{ $('Validate Camarero').item.json.qr_token }}",
+        "url": "=https://nlwrkumlrudfgsdnhfhw.supabase.co/rest/v1/tables?qr_token=eq.{{ $('Validate Camarero').first().json.qr_token }}",
         "authentication": "none",
         "sendHeaders": true,
         "headerParameters": { "parameters": [
@@ -128,13 +128,13 @@
         "sendBody": true,
         "contentType": "json",
         "specifyBody": "json",
-        "jsonBody": "={\"status\":\"{{ $('Validate Camarero').item.json.tableStatus }}\"}"
+        "jsonBody": "={{ JSON.stringify({status: $('Validate Camarero').first().json.tableStatus}) }}"
       },
       "id": "update-table-camarero", "name": "Update Table - Camarero",
       "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [200, 440]
     },
     {
-      "parameters": { "respondWith": "json", "responseBody": "={\"ok\":true,\"callId\":\"{{ $('Validate Camarero').item.json.callId }}\"}", "options": { "responseCode": 201 } },
+      "parameters": { "respondWith": "json", "responseBody": "={{ JSON.stringify({ok: true, callId: $('Validate Camarero').first().json.callId}) }}", "options": { "responseCode": 201 } },
       "id": "respond-camarero", "name": "Respond - Camarero OK",
       "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [400, 440]
     },
@@ -173,7 +173,7 @@
     {
       "parameters": {
         "method": "PATCH",
-        "url": "=https://nlwrkumlrudfgsdnhfhw.supabase.co/rest/v1/tables?qr_token=eq.{{ $('Validate Bill').item.json.qr_token }}",
+        "url": "=https://nlwrkumlrudfgsdnhfhw.supabase.co/rest/v1/tables?qr_token=eq.{{ $('Validate Bill').first().json.qr_token }}",
         "authentication": "none",
         "sendHeaders": true,
         "headerParameters": { "parameters": [
