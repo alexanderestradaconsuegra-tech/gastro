@@ -256,8 +256,9 @@ function Layout({ role, tab, setTab, authStaff, onSignOut, children }: LayoutPro
 // ─── Topbar ──────────────────────────────────────────────────────────────────
 function Topbar({ role, authStaff, state }: { role: StaffRole; authStaff?: StaffProfile; state: BackofficeState }) {
   const statusColor = state.dbStatus === "ok" ? "#34d399" : state.dbStatus === "error" ? "#f87171" : "#f59e0b";
+  const activeOrders = state.orders.filter(o => o.status !== "served" && o.status !== "cancelled").length;
   const statusLabel = state.dbStatus === "ok"
-    ? `${state.tables.length} mesas · ${state.orders.filter(o => o.status !== "served" && o.status !== "cancelled").length} pedidos activos`
+    ? `${state.tables.length} mesas · ${state.orders.length} pedidos (${activeOrders} activos)`
     : state.dbStatus === "error"
     ? `Sin conexión a BD`
     : "Conectando...";

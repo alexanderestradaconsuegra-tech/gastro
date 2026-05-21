@@ -215,98 +215,98 @@ export function useBackofficeState(): BackofficeState {
 
   const supabaseAvailable = useRef(isSupabaseConfigured());
 
-  // ─── polling: orders + items ─────────────────────────────────────────────
-  // order_items may not be in supabase_realtime publication, so we poll.
-  // Fires on mount (immediate) and every 10 s.
+  // ─── unified poller: orders + items + tables + calls (every 5 s) ─────────
   useEffect(() => {
+    console.log("[gastro] useBackofficeState mount — supabaseAvailable:", supabaseAvailable.current);
     if (!supabaseAvailable.current) {
       setDbStatus("error");
-      setDbError("Variables de entorno NEXT_PUBLIC_SUPABASE_URL o NEXT_PUBLIC_SUPABASE_ANON_KEY no configuradas");
+      setDbError("Supabase no configurado");
       return;
     }
 
-    async function refreshOrders() {
-      const { data: ordersData, error } = await supabase
-        .from("orders")
-        .select("*")
-        .order("created_at", { ascending: false })
-        .limit(200);
-      if (error) {
-        setDbStatus("error");
-        setDbError(`Error al cargar pedidos: ${error.message}`);
-        return;
-      }
-      if (!ordersData) return;
+    let cancelled = false;
 
-      const ids = ordersData.map((o) => o.id as string);
-      const { data: itemsData } = ids.length
-        ? await supabase.from("order_items").select("*").in("order_id", ids)
-        : { data: [] };
+    async function refreshAll() {
+      console.log("[gastro] refreshAll start");
+      try {
+        const [ordersRes, tablesRes, callsRes] = await Promise.all([
+          supabase.from("orders").select("*").order("created_at", { ascending: false }).limit(200),
+          supabase.from("tables").select("*").order("id"),
+          supabase.from("calls").select("*").order("created_at", { ascending: false }).limit(100),
+        ]);
 
-      const byOrder: Record<string, Record<string, unknown>[]> = {};
-      for (const item of (itemsData ?? []) as Record<string, unknown>[]) {
-        const oid = item.order_id as string;
-        if (!byOrder[oid]) byOrder[oid] = [];
-        byOrder[oid].push(item);
-      }
+        if (cancelled) return;
 
-      setOrders(
-        ordersData.map((o) => ({
+        if (ordersRes.error) {
+          console.error("[gastro] orders error:", ordersRes.error);
+          setDbStatus("error");
+          setDbError(`orders: ${ordersRes.error.message}`);
+          return;
+        }
+
+        const ordersData = ordersRes.data ?? [];
+        const ids = ordersData.map((o) => o.id as string);
+        const itemsRes = ids.length
+          ? await supabase.from("order_items").select("*").in("order_id", ids)
+          : { data: [], error: null };
+
+        if (cancelled) return;
+
+        if (itemsRes.error) {
+          console.error("[gastro] order_items error:", itemsRes.error);
+        }
+
+        const byOrder: Record<string, Record<string, unknown>[]> = {};
+        for (const item of (itemsRes.data ?? []) as Record<string, unknown>[]) {
+          const oid = item.order_id as string;
+          if (!byOrder[oid]) byOrder[oid] = [];
+          byOrder[oid].push(item);
+        }
+
+        const mappedOrders = ordersData.map((o) => ({
           ...mapDbOrder(o as Record<string, unknown>),
           items: (byOrder[o.id as string] ?? []).map(mapDbOrderItem),
-        }))
-      );
-      setDbStatus("ok");
-      setDbError(null);
-      setLastSync(new Date());
+        }));
+
+        console.log(`[gastro] fetched ${mappedOrders.length} orders, ${tablesRes.data?.length ?? 0} tables, ${callsRes.data?.length ?? 0} calls`);
+
+        setOrders(mappedOrders);
+
+        if (tablesRes.data?.length) {
+          setTables(tablesRes.data.map(mapDbTable));
+          setQrTokens(tablesRes.data.map((r) => ({
+            tableId: r.id as number,
+            token: r.qr_token as string,
+            active: r.active as boolean,
+          })));
+        }
+
+        if (callsRes.data) {
+          setCalls(callsRes.data.map(mapDbCall));
+        }
+
+        setDbStatus("ok");
+        setDbError(null);
+        setLastSync(new Date());
+      } catch (err) {
+        console.error("[gastro] refreshAll exception:", err);
+        if (!cancelled) {
+          setDbStatus("error");
+          setDbError(err instanceof Error ? err.message : String(err));
+        }
+      }
     }
 
-    refreshOrdersRef.current = refreshOrders;
-    refreshOrders();
-    const interval = setInterval(refreshOrders, 10_000);
-    return () => clearInterval(interval);
-  }, []);
+    refreshOrdersRef.current = refreshAll;
+    refreshTablesRef.current = refreshAll;
+    refreshCallsRef.current = refreshAll;
 
-  // ─── polling: tables ─────────────────────────────────────────────────────
-  useEffect(() => {
-    if (!supabaseAvailable.current) return;
-
-    async function refreshTables() {
-      const { data } = await supabase.from("tables").select("*").order("id");
-      if (!data?.length) return;
-      setTables(data.map(mapDbTable));
-      setQrTokens(
-        data.map((r) => ({
-          tableId: r.id as number,
-          token: r.qr_token as string,
-          active: r.active as boolean,
-        }))
-      );
-    }
-
-    refreshTablesRef.current = refreshTables;
-    refreshTables();
-    const interval = setInterval(refreshTables, 10_000);
-    return () => clearInterval(interval);
-  }, []);
-
-  // ─── polling: calls ──────────────────────────────────────────────────────
-  useEffect(() => {
-    if (!supabaseAvailable.current) return;
-
-    async function refreshCalls() {
-      const { data } = await supabase
-        .from("calls")
-        .select("*")
-        .order("created_at", { ascending: false })
-        .limit(100);
-      if (data) setCalls(data.map(mapDbCall));
-    }
-
-    refreshCallsRef.current = refreshCalls;
-    refreshCalls();
-    const interval = setInterval(refreshCalls, 10_000);
-    return () => clearInterval(interval);
+    refreshAll();
+    const interval = setInterval(refreshAll, 5_000);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
   }, []);
 
   // ─── load open cash session on mount ────────────────────────────────────
