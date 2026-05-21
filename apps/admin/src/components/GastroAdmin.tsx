@@ -636,7 +636,7 @@ function MessagesView({ role, staffId, state }: RoleStaffState) {
 }
 
 function MessageCard({ msg, state, compact = false }: { msg: MessageRow; state: BackofficeState; compact?: boolean }) {
-  const isUrgent = msg.status === "unread" || msg.text.toLowerCase().includes("alergia");
+  const isUrgent = msg.status === "urgente" || msg.text.toLowerCase().includes("alergia");
   return (
     <article className={`message-card ${isUrgent ? "urgent" : ""}`}>
       <div className="message-top">

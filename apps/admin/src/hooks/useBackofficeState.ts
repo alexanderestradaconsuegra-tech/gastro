@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { supabase } from "@/lib/supabase";
+import { isSupabaseConfigured, supabase } from "@/lib/supabase";
 import {
   Call,
   CashSession,
@@ -208,17 +208,12 @@ export function useBackofficeState(): BackofficeState {
   const [dbStatus, setDbStatus] = useState<"ok" | "error" | "loading">("loading");
   const [dbError, setDbError] = useState<string | null>(null);
   const [lastSync, setLastSync] = useState<Date | null>(null);
-  const refreshRef = useRef<(() => void) | null>(null);
+  // Refs for each poller so refreshNow can trigger all three
+  const refreshOrdersRef = useRef<(() => void) | null>(null);
+  const refreshTablesRef = useRef<(() => void) | null>(null);
+  const refreshCallsRef = useRef<(() => void) | null>(null);
 
-  const supabaseAvailable = useRef(
-    // Build-time baked vars OR runtime window injection from layout.tsx
-    !!(
-      (process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) ||
-      (typeof window !== "undefined" &&
-        (window as unknown as Record<string, string>).__SB_URL__ &&
-        (window as unknown as Record<string, string>).__SB_KEY__)
-    )
-  );
+  const supabaseAvailable = useRef(isSupabaseConfigured());
 
   // ─── polling: orders + items ─────────────────────────────────────────────
   // order_items may not be in supabase_realtime publication, so we poll.
@@ -266,7 +261,7 @@ export function useBackofficeState(): BackofficeState {
       setLastSync(new Date());
     }
 
-    refreshRef.current = refreshOrders;
+    refreshOrdersRef.current = refreshOrders;
     refreshOrders();
     const interval = setInterval(refreshOrders, 10_000);
     return () => clearInterval(interval);
@@ -289,6 +284,7 @@ export function useBackofficeState(): BackofficeState {
       );
     }
 
+    refreshTablesRef.current = refreshTables;
     refreshTables();
     const interval = setInterval(refreshTables, 10_000);
     return () => clearInterval(interval);
@@ -307,6 +303,7 @@ export function useBackofficeState(): BackofficeState {
       if (data) setCalls(data.map(mapDbCall));
     }
 
+    refreshCallsRef.current = refreshCalls;
     refreshCalls();
     const interval = setInterval(refreshCalls, 10_000);
     return () => clearInterval(interval);
@@ -322,7 +319,7 @@ export function useBackofficeState(): BackofficeState {
     supabase.from("staff").select("*").order("name")
       .then(({ data }) => { if (data?.length) setStaff(data.map(mapDbStaff)); });
 
-    supabase.from("menu_items").select("*").eq("available", true).order("category")
+    supabase.from("menu_items").select("*").order("category")
       .then(({ data }) => { if (data?.length) setMenuItems(data.map(mapDbMenuItem)); });
 
     supabase.from("reviews").select("*").order("created_at", { ascending: false }).limit(50)
@@ -339,6 +336,18 @@ export function useBackofficeState(): BackofficeState {
     // Orders — instant status updates from admin actions
     const ordersChannel = supabase
       .channel("orders-rt")
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "orders" }, async (payload) => {
+        const r = payload.new as Record<string, unknown>;
+        // Fetch items for the new order — they may have inserted just before or after
+        const { data: items } = await supabase
+          .from("order_items")
+          .select("*")
+          .eq("order_id", r.id as string);
+        setOrders((prev) => {
+          if (prev.find((o) => o.id === r.id)) return prev;
+          return [{ ...mapDbOrder(r), items: (items ?? []).map(mapDbOrderItem) }, ...prev];
+        });
+      })
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "orders" }, (payload) => {
         const r = payload.new as Record<string, unknown>;
         setOrders((prev) =>
@@ -468,25 +477,12 @@ export function useBackofficeState(): BackofficeState {
       .eq("id", tableId)
       .then(() => {});
 
-    // Record payment in the open cash session
-    supabase
-      .from("cash_sessions")
-      .select("id, cash_total, card_total, transfer_total, tips_total")
-      .eq("status", "open")
-      .order("opened_at", { ascending: false })
-      .limit(1)
-      .single()
-      .then(({ data: session }) => {
-        if (!session) return;
-        supabase
-          .from("cash_sessions")
-          .update({
-            [amountCol]: (session[amountCol as keyof typeof session] as number) + amount,
-            tips_total: (session.tips_total as number) + tipAmount,
-          })
-          .eq("id", session.id)
-          .then(() => {});
-      });
+    // Atomically increment the open cash session totals via RPC to avoid lost-update races
+    supabase.rpc("increment_cash_session", {
+      p_amount_col: amountCol,
+      p_amount: amount,
+      p_tips: tipAmount,
+    }).then(() => {});
   }, []);
 
   const saveMenuItem = useCallback((item: MenuItem) => {
@@ -603,7 +599,9 @@ export function useBackofficeState(): BackofficeState {
   }, []);
 
   const refreshNow = useCallback(() => {
-    refreshRef.current?.();
+    refreshOrdersRef.current?.();
+    refreshTablesRef.current?.();
+    refreshCallsRef.current?.();
   }, []);
 
   return {

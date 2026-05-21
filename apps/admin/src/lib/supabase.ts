@@ -1,40 +1,51 @@
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 
-function getSupabaseUrl(): string {
-  // Build-time baked (available when NEXT_PUBLIC_* were set as Docker build args)
-  if (process.env.NEXT_PUBLIC_SUPABASE_URL) return process.env.NEXT_PUBLIC_SUPABASE_URL;
-  // Runtime injection via layout.tsx <script> tag (works even without build-time args)
-  if (typeof window !== "undefined" && (window as unknown as Record<string, string>).__SB_URL__) {
-    return (window as unknown as Record<string, string>).__SB_URL__;
+// Augment Window so window.__SB_URL__ / __SB_KEY__ are typed throughout the app
+declare global {
+  interface Window {
+    __SB_URL__?: string;
+    __SB_KEY__?: string;
   }
-  return "";
+}
+
+function getSupabaseUrl(): string {
+  // Build-time baked first, then runtime injection from layout.tsx <script>
+  return (
+    process.env.NEXT_PUBLIC_SUPABASE_URL ||
+    (typeof window !== "undefined" ? window.__SB_URL__ : undefined) ||
+    ""
+  );
 }
 
 function getSupabaseKey(): string {
-  if (process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) return process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  if (typeof window !== "undefined" && (window as unknown as Record<string, string>).__SB_KEY__) {
-    return (window as unknown as Record<string, string>).__SB_KEY__;
-  }
-  return "";
+  return (
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+    (typeof window !== "undefined" ? window.__SB_KEY__ : undefined) ||
+    ""
+  );
 }
 
-// Lazy singleton — created on first use so window vars are available
+export function isSupabaseConfigured(): boolean {
+  return !!(getSupabaseUrl() && getSupabaseKey());
+}
+
+// Lazy singleton — created on first use so window vars are already set
 let _client: SupabaseClient | null = null;
 
 export function getSupabaseClient(): SupabaseClient {
   if (_client) return _client;
-  const url = getSupabaseUrl();
-  const key = getSupabaseKey();
-  _client = createClient(url, key, {
+  _client = createClient(getSupabaseUrl(), getSupabaseKey(), {
     realtime: { params: { eventsPerSecond: 10 } },
   });
   return _client;
 }
 
-// Convenience proxy — behaves like the old `supabase` export but lazy
+// Bind-safe lazy proxy — equivalent to the old module-level `supabase` singleton
 export const supabase = new Proxy({} as SupabaseClient, {
-  get(_target, prop) {
-    return (getSupabaseClient() as unknown as Record<string | symbol, unknown>)[prop];
+  get(_target, prop, receiver) {
+    const client = getSupabaseClient();
+    const value = Reflect.get(client, prop, client);
+    return typeof value === "function" ? (value as Function).bind(client) : value;
   },
 });
 
