@@ -227,6 +227,7 @@ export function useBackofficeState(): BackofficeState {
     let cancelled = false;
 
     async function refreshAll() {
+      const t0 = Date.now();
       console.log("[gastro] refreshAll start");
       try {
         const [ordersRes, tablesRes, callsRes] = await Promise.all([
@@ -234,6 +235,9 @@ export function useBackofficeState(): BackofficeState {
           supabase.from("tables").select("*").order("id"),
           supabase.from("calls").select("*").order("created_at", { ascending: false }).limit(100),
         ]);
+
+        const dt = Date.now() - t0;
+        console.log(`[gastro] refreshAll resolved in ${dt}ms — orders.error=${ordersRes.error?.message ?? "none"} rows=${ordersRes.data?.length ?? 0} cancelled=${cancelled}`);
 
         if (cancelled) return;
 
