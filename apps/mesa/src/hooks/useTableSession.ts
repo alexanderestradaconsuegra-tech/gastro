@@ -246,20 +246,21 @@ export function useTableSession(qrToken: string) {
       dispatch({ type: "CLEAR_CART" });
 
       const payload = {
-        qrToken: tableCtx.qrToken,
-        tableId: tableCtx.tableId,
-        tableLabel: tableCtx.tableLabel,
-        zone: tableCtx.zone,
-        sessionId: tableCtx.sessionId,
-        restaurantId: tableCtx.restaurantId,
+        restaurant_id: tableCtx.restaurantId,
+        qr_token: tableCtx.qrToken,
+        table_id: tableCtx.tableId,
+        session_id: tableCtx.sessionId,
+        notes: note || null,
+        channel: "QR Mesa",
+        priority: "Normal",
+        eta_minutes: 18,
+        total,
         items: cart.map((c) => ({
-          id: c.item.id,
-          name: c.item.name,
-          price: c.item.price,
+          menu_item_id: c.item.id,
+          dish_name: c.item.name,
+          unit_price: c.item.price,
           qty: c.qty,
         })),
-        note,
-        total,
       };
 
       try {
@@ -288,14 +289,13 @@ export function useTableSession(qrToken: string) {
       });
 
       const payload = {
-        qrToken: tableCtx.qrToken,
-        tableId: tableCtx.tableId,
-        tableLabel: tableCtx.tableLabel,
-        zone: tableCtx.zone,
-        sessionId: tableCtx.sessionId,
-        restaurantId: tableCtx.restaurantId,
-        reason,
-        priority: "normal",
+        restaurant_id: tableCtx.restaurantId,
+        qr_token: tableCtx.qrToken,
+        table_id: tableCtx.tableId,
+        session_id: tableCtx.sessionId,
+        call_type: reason,
+        message: reason,
+        priority: reason.toLowerCase().includes("urgente") ? "Alta" : "Normal",
       };
 
       try {
@@ -333,13 +333,11 @@ export function useTableSession(qrToken: string) {
   const requestBill = useCallback(
     async (amount: number, tableCtx: TableContext): Promise<{ ok: boolean; error?: string }> => {
       const payload = {
-        qrToken: tableCtx.qrToken,
-        tableId: tableCtx.tableId,
-        tableLabel: tableCtx.tableLabel,
-        zone: tableCtx.zone,
+        restaurant_id: tableCtx.restaurantId,
+        qr_token: tableCtx.qrToken,
+        table_id: tableCtx.tableId,
+        session_id: tableCtx.sessionId,
         amount,
-        restaurantId: tableCtx.restaurantId,
-        action: "request_camarero_charge",
       };
 
       try {
@@ -363,13 +361,13 @@ export function useTableSession(qrToken: string) {
       tableCtx: TableContext
     ): Promise<{ ok: boolean; error?: string }> => {
       const payload = {
-        qrToken: tableCtx.qrToken,
-        tableId: tableCtx.tableId,
-        tableLabel: tableCtx.tableLabel,
+        restaurant_id: tableCtx.restaurantId,
+        qr_token: tableCtx.qrToken,
+        table_id: tableCtx.tableId,
+        session_id: tableCtx.sessionId,
         rating,
-        comment,
+        comment: comment || null,
         source: "table_qr",
-        restaurantId: tableCtx.restaurantId,
       };
 
       try {
