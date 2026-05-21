@@ -8,31 +8,29 @@
     },
     {
       "parameters": {
-        "jsCode": "const raw = $input.first().json.body ?? $input.first().json;\nconst restaurant_id = raw.restaurant_id || raw.restaurantId || 'nido';\nconst qr_token = raw.qr_token || raw.qrToken || '';\nconst table_id = raw.table_id ?? raw.tableId ?? null;\nconst session_id = raw.session_id || raw.sessionId || null;\nconst notes = raw.notes || raw.note || null;\nconst rawItems = raw.items || [];\nif (!rawItems.length) throw new Error('items vacíos');\nconst items = rawItems.map(i => ({ menu_item_id: i.menu_item_id || i.id || '', dish_name: i.dish_name || i.name || '', unit_price: i.unit_price || i.price || 0, qty: (typeof i.qty === 'number' && i.qty > 0) ? i.qty : 1 }));\nconst digits = String(Math.floor(Math.random() * 10000)).padStart(4, '0');\nconst orderId = 'ORD-' + digits;\nconst total = raw.total || items.reduce((s, i) => s + i.unit_price * i.qty, 0);\nreturn [{ json: { orderId, restaurant_id, qr_token, table_id, session_id, notes, channel: raw.channel || 'QR Mesa', priority: raw.priority || 'Normal', eta_minutes: raw.eta_minutes || 18, total, items } }];"
+        "jsCode": "const raw = $input.first().json.body ?? $input.first().json;\nconst restaurant_id = raw.restaurant_id || raw.restaurantId || 'nido';\nconst qr_token = raw.qr_token || raw.qrToken || '';\nconst table_id = raw.table_id ?? raw.tableId ?? null;\nconst session_id = raw.session_id || raw.sessionId || null;\nconst notes = raw.notes || raw.note || null;\nconst rawItems = raw.items || [];\nif (!rawItems.length) throw new Error('items vacios');\nconst items = rawItems.map(i => ({ menu_item_id: i.menu_item_id || i.id || '', dish_name: i.dish_name || i.name || '', unit_price: i.unit_price || i.price || 0, qty: (typeof i.qty === 'number' && i.qty > 0) ? i.qty : 1 }));\nconst digits = String(Math.floor(Math.random() * 10000)).padStart(4, '0');\nconst orderId = 'ORD-' + digits;\nconst total = raw.total || items.reduce((s, i) => s + i.unit_price * i.qty, 0);\nreturn [{ json: { orderId, restaurant_id, qr_token, table_id, session_id, notes, channel: raw.channel || 'QR Mesa', priority: raw.priority || 'Normal', eta_minutes: raw.eta_minutes || 18, total, items } }];"
       },
       "id": "validate-order", "name": "Validate Order",
       "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [-200, 200]
     },
     {
       "parameters": {
-        "operation": "create", "tableId": "orders",
-        "dataToSend": "defineBelow",
-        "fieldsUi": { "fieldValues": [
-          { "fieldId": "id",            "fieldValue": "={{ $json.orderId }}" },
-          { "fieldId": "restaurant_id", "fieldValue": "={{ $json.restaurant_id }}" },
-          { "fieldId": "session_id",    "fieldValue": "={{ $json.session_id }}" },
-          { "fieldId": "table_id",      "fieldValue": "={{ $json.table_id }}" },
-          { "fieldId": "status",        "fieldValue": "received" },
-          { "fieldId": "priority",      "fieldValue": "={{ $json.priority }}" },
-          { "fieldId": "channel",       "fieldValue": "={{ $json.channel }}" },
-          { "fieldId": "eta_minutes",   "fieldValue": "={{ $json.eta_minutes }}" },
-          { "fieldId": "notes",         "fieldValue": "={{ $json.notes }}" },
-          { "fieldId": "total",         "fieldValue": "={{ $json.total }}" }
-        ]}
+        "method": "POST",
+        "url": "https://nlwrkumlrudfgsdnhfhw.supabase.co/rest/v1/orders",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [
+          { "name": "apikey",        "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5sd3JrdW1scnVkZmdzZG5oZmh3Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3ODU4NzU1OCwiZXhwIjoyMDk0MTYzNTU4fQ.nYVqfJZxIUE4IQ2O-PQq0c9HSK2Bm2NfOZDViO9-krE" },
+          { "name": "Authorization", "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5sd3JrdW1scnVkZmdzZG5oZmh3Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3ODU4NzU1OCwiZXhwIjoyMDk0MTYzNTU4fQ.nYVqfJZxIUE4IQ2O-PQq0c9HSK2Bm2NfOZDViO9-krE" },
+          { "name": "Prefer",        "value": "return=minimal" }
+        ]},
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({id: $json.orderId, restaurant_id: $json.restaurant_id, session_id: $json.session_id, table_id: $json.table_id, status: 'received', priority: $json.priority, channel: $json.channel, eta_minutes: $json.eta_minutes, notes: $json.notes, total: $json.total}) }}"
       },
       "id": "insert-order", "name": "Insert Order",
-      "type": "n8n-nodes-base.supabase", "typeVersion": 1, "position": [0, 200],
-      "credentials": { "supabaseApi": { "id": "0IY3nFZdR6FVHOZs", "name": "Supabase account" } }
+      "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [0, 200]
     },
     {
       "parameters": {
@@ -43,28 +41,44 @@
     },
     {
       "parameters": {
-        "operation": "create", "tableId": "order_items",
-        "dataToSend": "autoMapInputData"
+        "method": "POST",
+        "url": "https://nlwrkumlrudfgsdnhfhw.supabase.co/rest/v1/order_items",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [
+          { "name": "apikey",        "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5sd3JrdW1scnVkZmdzZG5oZmh3Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3ODU4NzU1OCwiZXhwIjoyMDk0MTYzNTU4fQ.nYVqfJZxIUE4IQ2O-PQq0c9HSK2Bm2NfOZDViO9-krE" },
+          { "name": "Authorization", "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5sd3JrdW1scnVkZmdzZG5oZmh3Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3ODU4NzU1OCwiZXhwIjoyMDk0MTYzNTU4fQ.nYVqfJZxIUE4IQ2O-PQq0c9HSK2Bm2NfOZDViO9-krE" },
+          { "name": "Prefer",        "value": "return=minimal" }
+        ]},
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}"
       },
       "id": "insert-items", "name": "Insert Order Items",
-      "type": "n8n-nodes-base.supabase", "typeVersion": 1, "position": [400, 200],
-      "credentials": { "supabaseApi": { "id": "0IY3nFZdR6FVHOZs", "name": "Supabase account" } }
+      "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [400, 200]
     },
     {
       "parameters": {
-        "operation": "update", "tableId": "tables",
-        "filterType": "string",
-        "matchType": "allFilters",
-        "filters": { "conditions": [{ "keyName": "qr_token", "condition": "eq", "keyValue": "={{ $('Validate Order').item.json.qr_token }}" }] },
-        "dataToSend": "defineBelow",
-        "fieldsUi": { "fieldValues": [{ "fieldId": "status", "fieldValue": "Pedido nuevo" }] }
+        "method": "PATCH",
+        "url": "=https://nlwrkumlrudfgsdnhfhw.supabase.co/rest/v1/tables?qr_token=eq.{{ $('Validate Order').item.json.qr_token }}",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [
+          { "name": "apikey",        "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5sd3JrdW1scnVkZmdzZG5oZmh3Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3ODU4NzU1OCwiZXhwIjoyMDk0MTYzNTU4fQ.nYVqfJZxIUE4IQ2O-PQq0c9HSK2Bm2NfOZDViO9-krE" },
+          { "name": "Authorization", "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5sd3JrdW1scnVkZmdzZG5oZmh3Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3ODU4NzU1OCwiZXhwIjoyMDk0MTYzNTU4fQ.nYVqfJZxIUE4IQ2O-PQq0c9HSK2Bm2NfOZDViO9-krE" },
+          { "name": "Prefer",        "value": "return=minimal" }
+        ]},
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "{\"status\":\"Pedido nuevo\"}"
       },
       "id": "update-table-order", "name": "Update Table - Pedido nuevo",
-      "type": "n8n-nodes-base.supabase", "typeVersion": 1, "position": [600, 200],
-      "credentials": { "supabaseApi": { "id": "0IY3nFZdR6FVHOZs", "name": "Supabase account" } }
+      "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [600, 200]
     },
     {
-      "parameters": { "respondWith": "json", "responseBody": "={\"ok\":true,\"orderId\":\"{{$('Validate Order').item.json.orderId}}\"}", "options": { "responseCode": 201 } },
+      "parameters": { "respondWith": "json", "responseBody": "={\"ok\":true,\"orderId\":\"{{ $('Validate Order').item.json.orderId }}\"}", "options": { "responseCode": 201 } },
       "id": "respond-order", "name": "Respond - Order OK",
       "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [800, 200]
     },
@@ -76,45 +90,51 @@
     },
     {
       "parameters": {
-        "jsCode": "const raw = $input.first().json.body ?? $input.first().json;\nconst callId = 'C-' + Math.random().toString(36).slice(2,10).toUpperCase();\nconst callType = raw.call_type || raw.reason || 'Camarero';\nlet priority = 'Normal';\nif (callType.toLowerCase().includes('alergi')) priority = 'Crítica';\nelse if (callType.toLowerCase().includes('urgente') || callType.toLowerCase().includes('cuenta')) priority = 'Alta';\nlet tableStatus = 'Camarero ocupado';\nif (callType.toLowerCase().includes('cuenta') || callType.toLowerCase().includes('cobro')) tableStatus = 'Solicita cobro';\nreturn [{ json: { callId, restaurant_id: raw.restaurant_id || raw.restaurantId || 'nido', qr_token: raw.qr_token || raw.qrToken || '', table_id: raw.table_id ?? raw.tableId ?? null, session_id: null, call_type: callType, priority, message: callType, tableStatus } }];"
+        "jsCode": "const raw = $input.first().json.body ?? $input.first().json;\nconst callId = 'C-' + Math.random().toString(36).slice(2,10).toUpperCase();\nconst callType = raw.call_type || raw.reason || 'Camarero';\nlet priority = 'Normal';\nif (callType.toLowerCase().includes('alergi')) priority = 'Critica';\nelse if (callType.toLowerCase().includes('urgente') || callType.toLowerCase().includes('cuenta')) priority = 'Alta';\nlet tableStatus = 'Camarero ocupado';\nif (callType.toLowerCase().includes('cuenta') || callType.toLowerCase().includes('cobro')) tableStatus = 'Solicita cobro';\nreturn [{ json: { callId, restaurant_id: raw.restaurant_id || raw.restaurantId || 'nido', qr_token: raw.qr_token || raw.qrToken || '', table_id: raw.table_id ?? raw.tableId ?? null, call_type: callType, priority, message: callType, tableStatus } }];"
       },
       "id": "validate-camarero", "name": "Validate Camarero",
       "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [-200, 440]
     },
     {
       "parameters": {
-        "operation": "create", "tableId": "calls",
-        "dataToSend": "defineBelow",
-        "fieldsUi": { "fieldValues": [
-          { "fieldId": "id",            "fieldValue": "={{ $json.callId }}" },
-          { "fieldId": "restaurant_id", "fieldValue": "={{ $json.restaurant_id }}" },
-          { "fieldId": "table_id",      "fieldValue": "={{ $json.table_id }}" },
-          { "fieldId": "source",        "fieldValue": "mesa" },
-          { "fieldId": "call_type",     "fieldValue": "={{ $json.call_type }}" },
-          { "fieldId": "priority",      "fieldValue": "={{ $json.priority }}" },
-          { "fieldId": "status",        "fieldValue": "Pendiente" },
-          { "fieldId": "message",       "fieldValue": "={{ $json.message }}" }
-        ]}
+        "method": "POST",
+        "url": "https://nlwrkumlrudfgsdnhfhw.supabase.co/rest/v1/calls",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [
+          { "name": "apikey",        "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5sd3JrdW1scnVkZmdzZG5oZmh3Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3ODU4NzU1OCwiZXhwIjoyMDk0MTYzNTU4fQ.nYVqfJZxIUE4IQ2O-PQq0c9HSK2Bm2NfOZDViO9-krE" },
+          { "name": "Authorization", "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5sd3JrdW1scnVkZmdzZG5oZmh3Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3ODU4NzU1OCwiZXhwIjoyMDk0MTYzNTU4fQ.nYVqfJZxIUE4IQ2O-PQq0c9HSK2Bm2NfOZDViO9-krE" },
+          { "name": "Prefer",        "value": "return=minimal" }
+        ]},
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({id: $json.callId, restaurant_id: $json.restaurant_id, table_id: $json.table_id, source: 'mesa', call_type: $json.call_type, priority: $json.priority, status: 'Pendiente', message: $json.message}) }}"
       },
       "id": "insert-call", "name": "Insert Call",
-      "type": "n8n-nodes-base.supabase", "typeVersion": 1, "position": [0, 440],
-      "credentials": { "supabaseApi": { "id": "0IY3nFZdR6FVHOZs", "name": "Supabase account" } }
+      "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [0, 440]
     },
     {
       "parameters": {
-        "operation": "update", "tableId": "tables",
-        "filterType": "string",
-        "matchType": "allFilters",
-        "filters": { "conditions": [{ "keyName": "qr_token", "condition": "eq", "keyValue": "={{ $('Validate Camarero').item.json.qr_token }}" }] },
-        "dataToSend": "defineBelow",
-        "fieldsUi": { "fieldValues": [{ "fieldId": "status", "fieldValue": "={{ $('Validate Camarero').item.json.tableStatus }}" }] }
+        "method": "PATCH",
+        "url": "=https://nlwrkumlrudfgsdnhfhw.supabase.co/rest/v1/tables?qr_token=eq.{{ $('Validate Camarero').item.json.qr_token }}",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [
+          { "name": "apikey",        "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5sd3JrdW1scnVkZmdzZG5oZmh3Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3ODU4NzU1OCwiZXhwIjoyMDk0MTYzNTU4fQ.nYVqfJZxIUE4IQ2O-PQq0c9HSK2Bm2NfOZDViO9-krE" },
+          { "name": "Authorization", "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5sd3JrdW1scnVkZmdzZG5oZmh3Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3ODU4NzU1OCwiZXhwIjoyMDk0MTYzNTU4fQ.nYVqfJZxIUE4IQ2O-PQq0c9HSK2Bm2NfOZDViO9-krE" },
+          { "name": "Prefer",        "value": "return=minimal" }
+        ]},
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={\"status\":\"{{ $('Validate Camarero').item.json.tableStatus }}\"}"
       },
       "id": "update-table-camarero", "name": "Update Table - Camarero",
-      "type": "n8n-nodes-base.supabase", "typeVersion": 1, "position": [200, 440],
-      "credentials": { "supabaseApi": { "id": "0IY3nFZdR6FVHOZs", "name": "Supabase account" } }
+      "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [200, 440]
     },
     {
-      "parameters": { "respondWith": "json", "responseBody": "={\"ok\":true,\"callId\":\"{{$('Validate Camarero').item.json.callId}}\"}", "options": { "responseCode": 201 } },
+      "parameters": { "respondWith": "json", "responseBody": "={\"ok\":true,\"callId\":\"{{ $('Validate Camarero').item.json.callId }}\"}", "options": { "responseCode": 201 } },
       "id": "respond-camarero", "name": "Respond - Camarero OK",
       "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [400, 440]
     },
@@ -133,38 +153,44 @@
     },
     {
       "parameters": {
-        "operation": "create", "tableId": "calls",
-        "dataToSend": "defineBelow",
-        "fieldsUi": { "fieldValues": [
-          { "fieldId": "id",            "fieldValue": "={{ $json.callId }}" },
-          { "fieldId": "restaurant_id", "fieldValue": "={{ $json.restaurant_id }}" },
-          { "fieldId": "table_id",      "fieldValue": "={{ $json.table_id }}" },
-          { "fieldId": "source",        "fieldValue": "mesa" },
-          { "fieldId": "call_type",     "fieldValue": "Solicita cobro" },
-          { "fieldId": "priority",      "fieldValue": "Alta" },
-          { "fieldId": "status",        "fieldValue": "Pendiente" },
-          { "fieldId": "message",       "fieldValue": "Solicita la cuenta" }
-        ]}
+        "method": "POST",
+        "url": "https://nlwrkumlrudfgsdnhfhw.supabase.co/rest/v1/calls",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [
+          { "name": "apikey",        "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5sd3JrdW1scnVkZmdzZG5oZmh3Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3ODU4NzU1OCwiZXhwIjoyMDk0MTYzNTU4fQ.nYVqfJZxIUE4IQ2O-PQq0c9HSK2Bm2NfOZDViO9-krE" },
+          { "name": "Authorization", "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5sd3JrdW1scnVkZmdzZG5oZmh3Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3ODU4NzU1OCwiZXhwIjoyMDk0MTYzNTU4fQ.nYVqfJZxIUE4IQ2O-PQq0c9HSK2Bm2NfOZDViO9-krE" },
+          { "name": "Prefer",        "value": "return=minimal" }
+        ]},
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({id: $json.callId, restaurant_id: $json.restaurant_id, table_id: $json.table_id, source: 'mesa', call_type: 'Solicita cobro', priority: 'Alta', status: 'Pendiente', message: 'Solicita la cuenta'}) }}"
       },
       "id": "insert-bill-call", "name": "Insert Bill Call",
-      "type": "n8n-nodes-base.supabase", "typeVersion": 1, "position": [0, 660],
-      "credentials": { "supabaseApi": { "id": "0IY3nFZdR6FVHOZs", "name": "Supabase account" } }
+      "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [0, 660]
     },
     {
       "parameters": {
-        "operation": "update", "tableId": "tables",
-        "filterType": "string",
-        "matchType": "allFilters",
-        "filters": { "conditions": [{ "keyName": "qr_token", "condition": "eq", "keyValue": "={{ $('Validate Bill').item.json.qr_token }}" }] },
-        "dataToSend": "defineBelow",
-        "fieldsUi": { "fieldValues": [{ "fieldId": "status", "fieldValue": "Solicita cobro" }] }
+        "method": "PATCH",
+        "url": "=https://nlwrkumlrudfgsdnhfhw.supabase.co/rest/v1/tables?qr_token=eq.{{ $('Validate Bill').item.json.qr_token }}",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [
+          { "name": "apikey",        "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5sd3JrdW1scnVkZmdzZG5oZmh3Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3ODU4NzU1OCwiZXhwIjoyMDk0MTYzNTU4fQ.nYVqfJZxIUE4IQ2O-PQq0c9HSK2Bm2NfOZDViO9-krE" },
+          { "name": "Authorization", "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5sd3JrdW1scnVkZmdzZG5oZmh3Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3ODU4NzU1OCwiZXhwIjoyMDk0MTYzNTU4fQ.nYVqfJZxIUE4IQ2O-PQq0c9HSK2Bm2NfOZDViO9-krE" },
+          { "name": "Prefer",        "value": "return=minimal" }
+        ]},
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "{\"status\":\"Solicita cobro\"}"
       },
       "id": "update-table-bill", "name": "Update Table - Solicita Cobro",
-      "type": "n8n-nodes-base.supabase", "typeVersion": 1, "position": [200, 660],
-      "credentials": { "supabaseApi": { "id": "0IY3nFZdR6FVHOZs", "name": "Supabase account" } }
+      "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [200, 660]
     },
     {
-      "parameters": { "respondWith": "json", "responseBody": "={\"ok\":true}", "options": { "responseCode": 201 } },
+      "parameters": { "respondWith": "json", "responseBody": "{\"ok\":true}", "options": { "responseCode": 201 } },
       "id": "respond-bill", "name": "Respond - Bill OK",
       "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [400, 660]
     },
@@ -183,19 +209,22 @@
     },
     {
       "parameters": {
-        "operation": "create", "tableId": "reviews",
-        "dataToSend": "defineBelow",
-        "fieldsUi": { "fieldValues": [
-          { "fieldId": "restaurant_id", "fieldValue": "={{ $json.restaurant_id }}" },
-          { "fieldId": "table_id",      "fieldValue": "={{ $json.table_id }}" },
-          { "fieldId": "rating",        "fieldValue": "={{ $json.rating }}" },
-          { "fieldId": "comment",       "fieldValue": "={{ $json.comment }}" },
-          { "fieldId": "source",        "fieldValue": "={{ $json.source }}" }
-        ]}
+        "method": "POST",
+        "url": "https://nlwrkumlrudfgsdnhfhw.supabase.co/rest/v1/reviews",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [
+          { "name": "apikey",        "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5sd3JrdW1scnVkZmdzZG5oZmh3Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3ODU4NzU1OCwiZXhwIjoyMDk0MTYzNTU4fQ.nYVqfJZxIUE4IQ2O-PQq0c9HSK2Bm2NfOZDViO9-krE" },
+          { "name": "Authorization", "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5sd3JrdW1scnVkZmdzZG5oZmh3Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3ODU4NzU1OCwiZXhwIjoyMDk0MTYzNTU4fQ.nYVqfJZxIUE4IQ2O-PQq0c9HSK2Bm2NfOZDViO9-krE" },
+          { "name": "Prefer",        "value": "return=minimal" }
+        ]},
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}"
       },
       "id": "insert-review", "name": "Insert Review",
-      "type": "n8n-nodes-base.supabase", "typeVersion": 1, "position": [0, 880],
-      "credentials": { "supabaseApi": { "id": "0IY3nFZdR6FVHOZs", "name": "Supabase account" } }
+      "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [0, 880]
     },
     {
       "parameters": { "respondWith": "json", "responseBody": "{\"ok\":true}", "options": { "responseCode": 201 } },
@@ -205,23 +234,23 @@
   ],
   "pinData": {},
   "connections": {
-    "Webhook - Order Create":    { "main": [[{ "node": "Validate Order",           "type": "main", "index": 0 }]] },
-    "Validate Order":            { "main": [[{ "node": "Insert Order",             "type": "main", "index": 0 }]] },
-    "Insert Order":              { "main": [[{ "node": "Split Order Items",        "type": "main", "index": 0 }]] },
-    "Split Order Items":         { "main": [[{ "node": "Insert Order Items",       "type": "main", "index": 0 }]] },
-    "Insert Order Items":        { "main": [[{ "node": "Update Table - Pedido nuevo", "type": "main", "index": 0 }]] },
-    "Update Table - Pedido nuevo": { "main": [[{ "node": "Respond - Order OK",    "type": "main", "index": 0 }]] },
-    "Webhook - Camarero Call":   { "main": [[{ "node": "Validate Camarero",       "type": "main", "index": 0 }]] },
-    "Validate Camarero":         { "main": [[{ "node": "Insert Call",             "type": "main", "index": 0 }]] },
-    "Insert Call":               { "main": [[{ "node": "Update Table - Camarero", "type": "main", "index": 0 }]] },
-    "Update Table - Camarero":   { "main": [[{ "node": "Respond - Camarero OK",   "type": "main", "index": 0 }]] },
-    "Webhook - Bill Request":    { "main": [[{ "node": "Validate Bill",           "type": "main", "index": 0 }]] },
-    "Validate Bill":             { "main": [[{ "node": "Insert Bill Call",        "type": "main", "index": 0 }]] },
-    "Insert Bill Call":          { "main": [[{ "node": "Update Table - Solicita Cobro", "type": "main", "index": 0 }]] },
-    "Update Table - Solicita Cobro": { "main": [[{ "node": "Respond - Bill OK",  "type": "main", "index": 0 }]] },
-    "Webhook - Feedback":        { "main": [[{ "node": "Validate Feedback",       "type": "main", "index": 0 }]] },
-    "Validate Feedback":         { "main": [[{ "node": "Insert Review",           "type": "main", "index": 0 }]] },
-    "Insert Review":             { "main": [[{ "node": "Respond - Feedback OK",   "type": "main", "index": 0 }]] }
+    "Webhook - Order Create":        { "main": [[{ "node": "Validate Order",             "type": "main", "index": 0 }]] },
+    "Validate Order":                { "main": [[{ "node": "Insert Order",               "type": "main", "index": 0 }]] },
+    "Insert Order":                  { "main": [[{ "node": "Split Order Items",           "type": "main", "index": 0 }]] },
+    "Split Order Items":             { "main": [[{ "node": "Insert Order Items",          "type": "main", "index": 0 }]] },
+    "Insert Order Items":            { "main": [[{ "node": "Update Table - Pedido nuevo", "type": "main", "index": 0 }]] },
+    "Update Table - Pedido nuevo":   { "main": [[{ "node": "Respond - Order OK",          "type": "main", "index": 0 }]] },
+    "Webhook - Camarero Call":       { "main": [[{ "node": "Validate Camarero",           "type": "main", "index": 0 }]] },
+    "Validate Camarero":             { "main": [[{ "node": "Insert Call",                 "type": "main", "index": 0 }]] },
+    "Insert Call":                   { "main": [[{ "node": "Update Table - Camarero",     "type": "main", "index": 0 }]] },
+    "Update Table - Camarero":       { "main": [[{ "node": "Respond - Camarero OK",       "type": "main", "index": 0 }]] },
+    "Webhook - Bill Request":        { "main": [[{ "node": "Validate Bill",               "type": "main", "index": 0 }]] },
+    "Validate Bill":                 { "main": [[{ "node": "Insert Bill Call",             "type": "main", "index": 0 }]] },
+    "Insert Bill Call":              { "main": [[{ "node": "Update Table - Solicita Cobro", "type": "main", "index": 0 }]] },
+    "Update Table - Solicita Cobro": { "main": [[{ "node": "Respond - Bill OK",            "type": "main", "index": 0 }]] },
+    "Webhook - Feedback":            { "main": [[{ "node": "Validate Feedback",            "type": "main", "index": 0 }]] },
+    "Validate Feedback":             { "main": [[{ "node": "Insert Review",                "type": "main", "index": 0 }]] },
+    "Insert Review":                 { "main": [[{ "node": "Respond - Feedback OK",        "type": "main", "index": 0 }]] }
   },
   "active": true,
   "settings": { "executionOrder": "v1" },
