@@ -29,6 +29,49 @@ export function isSupabaseConfigured(): boolean {
   return !!(getSupabaseUrl() && getSupabaseKey());
 }
 
+// ── Direct REST fetch (bypasses supabase-js internals) ───────────────────────
+// The Supabase JS PostgREST client can stall waiting for auth-queue init.
+// These helpers go straight to fetch() with the correct token, no middleware.
+
+function getAuthToken(): string {
+  // Try to read the stored session JWT without touching the Supabase JS client.
+  // The key format is sb-{project_ref}-auth-token.
+  if (typeof window === "undefined") return HARDCODED_ANON;
+  try {
+    const raw = localStorage.getItem("sb-nlwrkumlrudfgsdnhfhw-auth-token");
+    if (raw) {
+      const parsed = JSON.parse(raw) as Record<string, unknown>;
+      const token =
+        (parsed.access_token as string | undefined) ??
+        ((parsed as Record<string, Record<string, string>>).session?.access_token);
+      if (token && typeof token === "string" && token.length > 20) return token;
+    }
+  } catch {
+    // fall through
+  }
+  return HARDCODED_ANON;
+}
+
+export async function sbSelect<T = Record<string, unknown>>(
+  table: string,
+  qs: string
+): Promise<T[]> {
+  const token = getAuthToken();
+  const url = `${HARDCODED_URL}/rest/v1/${table}?${qs}`;
+  const res = await fetch(url, {
+    headers: {
+      apikey: HARDCODED_ANON,
+      Authorization: `Bearer ${token}`,
+      Accept: "application/json",
+    },
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => res.statusText);
+    throw new Error(`${table} ${res.status}: ${text}`);
+  }
+  return res.json() as Promise<T[]>;
+}
+
 let _client: SupabaseClient | null = null;
 
 export function getSupabaseClient(): SupabaseClient {

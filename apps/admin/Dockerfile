@@ -5,7 +5,7 @@ WORKDIR /app
 # Install libc6-compat for alpine compatibility
 RUN apk add --no-cache libc6-compat
 
-ARG CACHEBUST=32
+ARG CACHEBUST=33
 
 COPY package*.json ./
 RUN npm ci

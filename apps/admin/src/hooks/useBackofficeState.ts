@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { isSupabaseConfigured, supabase } from "@/lib/supabase";
+import { isSupabaseConfigured, sbSelect, supabase } from "@/lib/supabase";
 import {
   Call,
   CashSession,
@@ -230,64 +230,52 @@ export function useBackofficeState(): BackofficeState {
       const t0 = Date.now();
       console.log("[gastro] refreshAll start");
       try {
-        const [ordersRes, tablesRes, callsRes] = await Promise.all([
-          supabase.from("orders").select("*").order("created_at", { ascending: false }).limit(200),
-          supabase.from("tables").select("*").order("id"),
-          supabase.from("calls").select("*").order("created_at", { ascending: false }).limit(100),
+        const [ordersData, tablesData, callsData] = await Promise.all([
+          sbSelect("orders", "select=*&order=created_at.desc&limit=200"),
+          sbSelect("tables", "select=*&order=id"),
+          sbSelect("calls", "select=*&order=created_at.desc&limit=100"),
         ]);
 
         const dt = Date.now() - t0;
-        console.log(`[gastro] refreshAll resolved in ${dt}ms — orders.error=${ordersRes.error?.message ?? "none"} rows=${ordersRes.data?.length ?? 0} cancelled=${cancelled}`);
+        console.log(`[gastro] refreshAll resolved in ${dt}ms — orders=${ordersData.length} tables=${tablesData.length} calls=${callsData.length} cancelled=${cancelled}`);
 
         if (cancelled) return;
 
-        if (ordersRes.error) {
-          console.error("[gastro] orders error:", ordersRes.error);
-          setDbStatus("error");
-          setDbError(`orders: ${ordersRes.error.message}`);
-          return;
-        }
-
-        const ordersData = ordersRes.data ?? [];
         const ids = ordersData.map((o) => o.id as string);
-        const itemsRes = ids.length
-          ? await supabase.from("order_items").select("*").in("order_id", ids)
-          : { data: [], error: null };
+        const itemsData = ids.length
+          ? await sbSelect("order_items", `select=*&order_id=in.(${ids.join(",")})`)
+          : [];
 
         if (cancelled) return;
-
-        if (itemsRes.error) {
-          console.error("[gastro] order_items error:", itemsRes.error);
-        }
 
         const byOrder: Record<string, Record<string, unknown>[]> = {};
-        for (const item of (itemsRes.data ?? []) as Record<string, unknown>[]) {
+        for (const item of itemsData as Record<string, unknown>[]) {
           const oid = item.order_id as string;
           if (!byOrder[oid]) byOrder[oid] = [];
           byOrder[oid].push(item);
         }
 
-        const mappedOrders = ordersData.map((o) => ({
-          ...mapDbOrder(o as Record<string, unknown>),
+        const mappedOrders = (ordersData as Record<string, unknown>[]).map((o) => ({
+          ...mapDbOrder(o),
           items: (byOrder[o.id as string] ?? []).map(mapDbOrderItem),
         }));
 
         const byStatus = mappedOrders.reduce((acc, o) => { acc[o.status] = (acc[o.status] ?? 0) + 1; return acc; }, {} as Record<string, number>);
-        console.log(`[gastro] fetched ${mappedOrders.length} orders (${JSON.stringify(byStatus)}), ${tablesRes.data?.length ?? 0} tables, ${callsRes.data?.length ?? 0} calls`);
+        console.log(`[gastro] fetched ${mappedOrders.length} orders (${JSON.stringify(byStatus)}), ${tablesData.length} tables, ${callsData.length} calls`);
 
         setOrders(mappedOrders);
 
-        if (tablesRes.data?.length) {
-          setTables(tablesRes.data.map(mapDbTable));
-          setQrTokens(tablesRes.data.map((r) => ({
+        if (tablesData.length) {
+          setTables((tablesData as Record<string, unknown>[]).map(mapDbTable));
+          setQrTokens((tablesData as Record<string, unknown>[]).map((r) => ({
             tableId: r.id as number,
             token: r.qr_token as string,
             active: r.active as boolean,
           })));
         }
 
-        if (callsRes.data) {
-          setCalls(callsRes.data.map(mapDbCall));
+        if (callsData.length) {
+          setCalls((callsData as Record<string, unknown>[]).map(mapDbCall));
         }
 
         setDbStatus("ok");
@@ -317,13 +305,9 @@ export function useBackofficeState(): BackofficeState {
   // ─── load open cash session on mount ────────────────────────────────────
   useEffect(() => {
     if (!supabaseAvailable.current) return;
-    supabase.from("cash_sessions")
-      .select("*")
-      .eq("status", "open")
-      .order("opened_at", { ascending: false })
-      .limit(1)
-      .single()
-      .then(({ data }) => {
+    sbSelect("cash_sessions", "select=*&status=eq.open&order=opened_at.desc&limit=1")
+      .then((rows) => {
+        const data = rows[0] as Record<string, unknown> | undefined;
         if (!data) return;
         setCashSession({
           id: data.id as string,
@@ -338,27 +322,33 @@ export function useBackofficeState(): BackofficeState {
           tips: (data.tips_total as number) ?? 0,
           expenses: (data.expenses_total as number) ?? 0,
         });
-      });
+      })
+      .catch(() => {});
   }, []);
 
   // ─── one-time loads (less time-sensitive) ────────────────────────────────
   useEffect(() => {
     if (!supabaseAvailable.current) return;
 
-    supabase.from("messages").select("*").order("created_at", { ascending: false }).limit(100)
-      .then(({ data }) => { if (data) setMessages(data.map(mapDbMessage)); });
+    sbSelect("messages", "select=*&order=created_at.desc&limit=100")
+      .then((data) => { if (data.length) setMessages((data as Record<string, unknown>[]).map(mapDbMessage)); })
+      .catch(() => {});
 
-    supabase.from("staff").select("*").order("name")
-      .then(({ data }) => { if (data?.length) setStaff(data.map(mapDbStaff)); });
+    sbSelect("staff", "select=*&order=name")
+      .then((data) => { if (data.length) setStaff((data as Record<string, unknown>[]).map(mapDbStaff)); })
+      .catch(() => {});
 
-    supabase.from("menu_items").select("*").order("category")
-      .then(({ data }) => { if (data?.length) setMenuItems(data.map(mapDbMenuItem)); });
+    sbSelect("menu_items", "select=*&order=category")
+      .then((data) => { if (data.length) setMenuItems((data as Record<string, unknown>[]).map(mapDbMenuItem)); })
+      .catch(() => {});
 
-    supabase.from("reviews").select("*").order("created_at", { ascending: false }).limit(50)
-      .then(({ data }) => { if (data) setReviews(data.map(mapDbReview)); });
+    sbSelect("reviews", "select=*&order=created_at.desc&limit=50")
+      .then((data) => { if (data.length) setReviews((data as Record<string, unknown>[]).map(mapDbReview)); })
+      .catch(() => {});
 
-    supabase.from("inventory").select("*").order("name")
-      .then(({ data }) => { if (data?.length) setInventory(data.map(mapDbInventory)); });
+    sbSelect("inventory", "select=*&order=name")
+      .then((data) => { if (data.length) setInventory((data as Record<string, unknown>[]).map(mapDbInventory)); })
+      .catch(() => {});
   }, []);
 
   // ─── realtime (instant supplements to polling) ───────────────────────────
