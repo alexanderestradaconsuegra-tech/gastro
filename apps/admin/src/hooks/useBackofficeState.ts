@@ -309,6 +309,33 @@ export function useBackofficeState(): BackofficeState {
     return () => clearInterval(interval);
   }, []);
 
+  // ─── load open cash session on mount ────────────────────────────────────
+  useEffect(() => {
+    if (!supabaseAvailable.current) return;
+    supabase.from("cash_sessions")
+      .select("*")
+      .eq("status", "open")
+      .order("opened_at", { ascending: false })
+      .limit(1)
+      .single()
+      .then(({ data }) => {
+        if (!data) return;
+        setCashSession({
+          id: data.id as string,
+          status: "abierta",
+          openedAt: new Date(data.opened_at as string).toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" }),
+          turn: (data.turn as string) ?? "Noche",
+          openedBy: (data.opened_by as string) ?? "",
+          openingCash: (data.opening_cash as number) ?? 0,
+          cash: (data.cash_total as number) ?? 0,
+          card: (data.card_total as number) ?? 0,
+          transfer: (data.transfer_total as number) ?? 0,
+          tips: (data.tips_total as number) ?? 0,
+          expenses: (data.expenses_total as number) ?? 0,
+        });
+      });
+  }, []);
+
   // ─── one-time loads (less time-sensitive) ────────────────────────────────
   useEffect(() => {
     if (!supabaseAvailable.current) return;
@@ -533,8 +560,9 @@ export function useBackofficeState(): BackofficeState {
 
   const openCash = useCallback((userId: string) => {
     const now = new Date();
+    const id = `SHIFT-${now.toISOString().split("T")[0]}-${Date.now()}`;
     setCashSession({
-      id: `SHIFT-${now.toISOString().split("T")[0]}-${Date.now()}`,
+      id,
       status: "abierta",
       openedAt: now.toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" }),
       turn: "Noche",
@@ -546,13 +574,31 @@ export function useBackofficeState(): BackofficeState {
       tips: 0,
       expenses: 0,
     });
+    if (!supabaseAvailable.current) return;
+    supabase.from("cash_sessions").insert({
+      id,
+      restaurant_id: "nido",
+      opened_by: null,
+      turn: "Noche",
+      status: "open",
+      opening_cash: 150000,
+    }).then(() => {});
   }, []);
 
   const closeCash = useCallback(() => {
-    setCashSession((prev) => ({ ...prev, status: "cerrada" }));
+    let sessionId = "";
+    setCashSession((prev) => { sessionId = prev.id; return { ...prev, status: "cerrada" }; });
     if (!supabaseAvailable.current) return;
-    supabase.from("cash_sessions").update({ status: "closed", closed_at: new Date().toISOString() }).eq("id", cashSession.id);
-  }, [cashSession.id]);
+    // Use functional update to capture current id synchronously above
+    setTimeout(() => {
+      if (sessionId) {
+        supabase.from("cash_sessions")
+          .update({ status: "closed", closed_at: new Date().toISOString() })
+          .eq("id", sessionId)
+          .then(() => {});
+      }
+    }, 0);
+  }, []);
 
   const changeTurn = useCallback((turn: string) => {
     setCashSession((prev) => ({ ...prev, turn }));

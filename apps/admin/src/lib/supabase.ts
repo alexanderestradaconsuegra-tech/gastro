@@ -1,19 +1,19 @@
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 
-// Augment Window so window.__SB_URL__ / __SB_KEY__ are typed throughout the app
 declare global {
-  interface Window {
-    __SB_URL__?: string;
-    __SB_KEY__?: string;
-  }
+  interface Window { __SB_URL__?: string; __SB_KEY__?: string; }
 }
 
+// The anon key is intentionally public — it only grants access governed by RLS policies.
+// Service role key (bypasses RLS) must NEVER appear in client code.
+const HARDCODED_URL = "https://nlwrkumlrudfgsdnhfhw.supabase.co";
+const HARDCODED_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5sd3JrdW1scnVkZmdzZG5oZmh3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg1ODc1NTgsImV4cCI6MjA5NDE2MzU1OH0.Bi0v-temjfU-BDFVuyJTyc_19ZRx-T_we3MfeEkcsfg";
+
 function getSupabaseUrl(): string {
-  // Build-time baked first, then runtime injection from layout.tsx <script>
   return (
     process.env.NEXT_PUBLIC_SUPABASE_URL ||
     (typeof window !== "undefined" ? window.__SB_URL__ : undefined) ||
-    ""
+    HARDCODED_URL
   );
 }
 
@@ -21,7 +21,7 @@ function getSupabaseKey(): string {
   return (
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
     (typeof window !== "undefined" ? window.__SB_KEY__ : undefined) ||
-    ""
+    HARDCODED_ANON
   );
 }
 
@@ -29,20 +29,19 @@ export function isSupabaseConfigured(): boolean {
   return !!(getSupabaseUrl() && getSupabaseKey());
 }
 
-// Lazy singleton — created on first use so window vars are already set
 let _client: SupabaseClient | null = null;
 
 export function getSupabaseClient(): SupabaseClient {
   if (_client) return _client;
   _client = createClient(getSupabaseUrl(), getSupabaseKey(), {
+    auth: { autoRefreshToken: true, persistSession: true },
     realtime: { params: { eventsPerSecond: 10 } },
   });
   return _client;
 }
 
-// Bind-safe lazy proxy — equivalent to the old module-level `supabase` singleton
 export const supabase = new Proxy({} as SupabaseClient, {
-  get(_target, prop, receiver) {
+  get(_target, prop) {
     const client = getSupabaseClient();
     const value = Reflect.get(client, prop, client);
     return typeof value === "function" ? (value as Function).bind(client) : value;
