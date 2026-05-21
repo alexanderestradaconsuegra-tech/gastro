@@ -66,52 +66,52 @@ function randomToken() {
 }
 
 export function useBackofficeState(): BackofficeState {
-  const [orders, setOrders] = useState<Order[]>(INITIAL_ORDERS);
-  const [calls, setCalls] = useState<Call[]>(INITIAL_CALLS);
-  const [messages, setMessages] = useState<Message[]>(INITIAL_MESSAGES);
-  const [tables, setTables] = useState<Table[]>(INITIAL_TABLES);
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [calls, setCalls] = useState<Call[]>([]);
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [tables, setTables] = useState<Table[]>([]);
   const [staff, setStaff] = useState<StaffMember[]>(INITIAL_STAFF);
   const [cashSession, setCashSession] = useState<CashSession>(INITIAL_CASH_SESSION);
   const [inventory, setInventory] = useState<InventoryItem[]>(INITIAL_INVENTORY);
   const [menuItems, setMenuItems] = useState<MenuItem[]>(INITIAL_MENU_ITEMS);
   const [expenses, setExpenses] = useState<Expense[]>([]);
-  const [reviews] = useState<Review[]>(INITIAL_REVIEWS);
-  const [demoMode, setDemoMode] = useState(true);
-  const [qrTokens, setQrTokens] = useState<QrToken[]>(
-    INITIAL_TABLES.map((t) => ({ tableId: t.id, token: t.qrToken, active: true }))
-  );
+  const [reviews, setReviews] = useState<Review[]>([]);
+  const [demoMode, setDemoMode] = useState(false);
+  const [qrTokens, setQrTokens] = useState<QrToken[]>([]);
 
   const supabaseAvailable = useRef(
     !!(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)
   );
 
-  // Load existing data from Supabase on mount
+  // Load all data from Supabase on mount
   useEffect(() => {
     if (!supabaseAvailable.current) return;
 
-    supabase.from("orders").select("*").order("created_at", { ascending: false }).limit(100)
-      .then(({ data }) => { if (data?.length) setOrders(data.map(mapDbOrder)); });
+    supabase.from("orders").select("*").order("created_at", { ascending: false }).limit(200)
+      .then(({ data }) => { if (data) setOrders(data.map(mapDbOrder)); });
 
     supabase.from("calls").select("*").order("created_at", { ascending: false }).limit(100)
-      .then(({ data }) => { if (data?.length) setCalls(data.map(mapDbCall)); });
+      .then(({ data }) => { if (data) setCalls(data.map(mapDbCall)); });
+
+    supabase.from("messages").select("*").order("created_at", { ascending: false }).limit(100)
+      .then(({ data }) => { if (data) setMessages(data.map(mapDbMessage)); });
 
     supabase.from("tables").select("*").order("id")
       .then(({ data }) => {
         if (data?.length) {
-          setTables((prev) => prev.map((t) => {
-            const r = data.find((d) => d.id === t.id);
-            if (!r) return t;
-            return {
-              ...t,
-              status: (r.status as Table["status"]) ?? t.status,
-              guests: (r.guests as number) ?? t.guests,
-              bill: (r.bill as number) ?? t.bill,
-              waiterId: (r.waiter_id as string) ?? t.waiterId,
-              qrToken: (r.qr_token as string) ?? t.qrToken,
-            };
-          }));
+          setTables(data.map(mapDbTable));
+          setQrTokens(data.map((r) => ({ tableId: r.id as number, token: r.qr_token as string, active: r.active as boolean })));
         }
       });
+
+    supabase.from("staff").select("*").order("name")
+      .then(({ data }) => { if (data?.length) setStaff(data.map(mapDbStaff)); });
+
+    supabase.from("menu_items").select("*").eq("available", true).order("category")
+      .then(({ data }) => { if (data?.length) setMenuItems(data.map(mapDbMenuItem)); });
+
+    supabase.from("reviews").select("*").order("created_at", { ascending: false }).limit(50)
+      .then(({ data }) => { if (data) setReviews(data.map(mapDbReview)); });
   }, []);
 
   useEffect(() => {
@@ -488,6 +488,64 @@ function mapDbMessage(r: Record<string, unknown>): Message {
     fromRole: (r.from_role as string) ?? "client",
     text: (r.text as string) ?? "",
     status: (r.status as string) ?? "unread",
+    createdAt: (r.created_at as string) ?? new Date().toISOString(),
+  };
+}
+
+function mapDbTable(r: Record<string, unknown>): Table {
+  return {
+    id: r.id as number,
+    zone: (r.zone as string) ?? "",
+    status: (r.status as Table["status"]) ?? "Libre",
+    guests: (r.guests as number) ?? 0,
+    waiterId: (r.waiter_id as string) ?? null,
+    bill: (r.bill as number) ?? 0,
+    qrToken: (r.qr_token as string) ?? "",
+  };
+}
+
+function mapDbStaff(r: Record<string, unknown>): StaffMember {
+  return {
+    id: r.id as string,
+    name: (r.name as string) ?? "",
+    role: r.role as StaffMember["role"],
+    shift: (r.shift as string) ?? "",
+    status: (r.status as string) ?? "Activo",
+    tables: [],
+    phone: (r.phone as string) ?? "",
+    email: (r.email as string) ?? "",
+    avatarUrl: (r.avatar_url as string) ?? undefined,
+  };
+}
+
+function mapDbMenuItem(r: Record<string, unknown>): MenuItem {
+  return {
+    id: r.id as string,
+    name: r.name as string,
+    subtitle: (r.subtitle as string) ?? "",
+    description: (r.description as string) ?? "",
+    category: r.category as string,
+    price: r.price as number,
+    avgPrepMinutes: (r.avg_prep_minutes as number) ?? 15,
+    kcal: (r.kcal as number) ?? 0,
+    tags: (r.tags as string[]) ?? [],
+    allergens: (r.allergens as string[]) ?? [],
+    available: (r.available as boolean) ?? true,
+    visibleClient: (r.visible_client as boolean) ?? true,
+    stockStatus: (r.stock_status as MenuItem["stockStatus"]) ?? "available",
+    winePair: (r.wine_pair as string) ?? undefined,
+    imageUrl: (r.image_url as string) ?? undefined,
+  };
+}
+
+function mapDbReview(r: Record<string, unknown>): Review {
+  return {
+    id: r.id as string,
+    tableId: (r.table_id as number) ?? 0,
+    waiterId: (r.waiter_id as string) ?? "",
+    rating: r.rating as number,
+    comment: (r.comment as string) ?? "",
+    source: (r.source as string) ?? "table_qr",
     createdAt: (r.created_at as string) ?? new Date().toISOString(),
   };
 }
