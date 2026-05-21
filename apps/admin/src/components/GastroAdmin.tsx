@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useBackofficeState } from "@/hooks/useBackofficeState";
 import { uploadMenuImage, uploadStaffAvatar } from "@/lib/storage";
 import type { StaffProfile } from "@/hooks/useAuth";
@@ -123,6 +123,7 @@ const icons = {
   star: <svg viewBox="0 0 24 24"><path d="m12 2 3.1 6.3 6.9 1-5 4.9 1.2 6.8L12 17.8 5.8 21 7 14.2 2 9.3l6.9-1Z" /></svg>,
   settings: <svg viewBox="0 0 24 24"><path d="M12 15.5A3.5 3.5 0 1 0 12 8a3.5 3.5 0 0 0 0 7.5Z" /><path d="M19.4 15a1.8 1.8 0 0 0 .4 2l.1.1-2 3.5-.2-.1a1.8 1.8 0 0 0-2.1.2 1.8 1.8 0 0 0-.6 1.9H9a1.8 1.8 0 0 0-.6-1.9 1.8 1.8 0 0 0-2.1-.2l-.2.1-2-3.5.1-.1a1.8 1.8 0 0 0 .4-2A1.8 1.8 0 0 0 3 13.5v-4A1.8 1.8 0 0 0 4.6 8a1.8 1.8 0 0 0-.4-2l-.1-.1 2-3.5.2.1a1.8 1.8 0 0 0 2.1-.2A1.8 1.8 0 0 0 9 .4h6a1.8 1.8 0 0 0 .6 1.9 1.8 1.8 0 0 0 2.1.2l.2-.1 2 3.5-.1.1a1.8 1.8 0 0 0-.4 2A1.8 1.8 0 0 0 21 9.5v4a1.8 1.8 0 0 0-1.6 1.5Z" /></svg>,
   signout: <svg viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" /></svg>,
+  spark: <svg viewBox="0 0 24 24"><path d="M12 2l2.6 6.8L22 12l-7.4 3.2L12 22l-2.6-6.8L2 12l7.4-3.2Z" /></svg>,
 };
 
 const CSS = `
@@ -1459,11 +1460,101 @@ POST /webhook/cash-close`}</pre>
   );
 }
 
+// ─── Luka Admin Chat ──────────────────────────────────────────────────────────
+interface LukaMsg { role: "luka" | "user"; text: string }
+
+function LukaChat({ authStaff, onClose }: { authStaff?: StaffProfile; onClose: () => void }) {
+  const [msgs, setMsgs] = useState<LukaMsg[]>([
+    { role: "luka", text: `Hola${authStaff?.name ? ` ${authStaff.name.split(" ")[0]}` : ""}. Soy Luka, tu asistente. Puedo ayudarte con el estado de mesas, pedidos, recomendaciones para clientes o lo que necesites.` },
+  ]);
+  const [text, setText] = useState("");
+  const [thinking, setThinking] = useState(false);
+  const endRef = useRef<HTMLDivElement>(null);
+  useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [msgs]);
+
+  const send = async (value = text) => {
+    const q = value.trim();
+    if (!q || thinking) return;
+    setText("");
+    setMsgs((m) => [...m, { role: "user", text: q }]);
+    setThinking(true);
+    try {
+      const res = await fetch("/api/luka", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: q,
+          user_role: authStaff?.role ?? "admin",
+          restaurant_id: "nido",
+        }),
+        signal: AbortSignal.timeout(15_000),
+      });
+      const data = await res.json() as { reply?: string };
+      setMsgs((m) => [...m, { role: "luka", text: data.reply ?? "Sin respuesta." }]);
+    } catch {
+      setMsgs((m) => [...m, { role: "luka", text: "Error de conexión con Luka." }]);
+    }
+    setThinking(false);
+  };
+
+  const chips = ["¿Cuántas mesas activas?", "Resumen del servicio", "¿Qué recomendar hoy?", "¿Hay pedidos urgentes?"];
+
+  return (
+    <div style={{
+      position: "fixed", right: 22, bottom: 22, width: "min(420px,calc(100vw - 44px))",
+      maxHeight: "calc(100dvh - 44px)", zIndex: 90, borderRadius: 26,
+      background: "#100d0a", border: "1px solid var(--line)", boxShadow: "0 24px 80px rgba(0,0,0,.6)",
+      display: "flex", flexDirection: "column", overflow: "hidden",
+    }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 16px", borderBottom: "1px solid var(--line)" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <div style={{ width: 36, height: 36, borderRadius: 14, background: "linear-gradient(135deg,var(--gold),var(--gold2))", display: "grid", placeItems: "center", color: "#171006" }}>{icons.spark}</div>
+          <div><b style={{ fontSize: 15 }}>Luka</b><small style={{ display: "block", color: "var(--muted)", fontSize: 11 }}>Asistente NIDO</small></div>
+        </div>
+        <button className="btn ghost" style={{ padding: "6px 12px", fontSize: 12 }} onClick={onClose}>Cerrar</button>
+      </div>
+      <div style={{ flex: 1, overflow: "auto", padding: "12px 14px", display: "flex", flexDirection: "column", gap: 10, minHeight: 220, maxHeight: 420 }}>
+        {msgs.map((m, i) => (
+          <div key={i} style={{
+            maxWidth: "82%", borderRadius: 16, padding: "10px 13px", fontSize: 13, lineHeight: 1.5,
+            alignSelf: m.role === "user" ? "flex-end" : "flex-start",
+            background: m.role === "user" ? "linear-gradient(135deg,var(--gold),var(--gold2))" : "rgba(255,255,255,.07)",
+            color: m.role === "user" ? "#171006" : "var(--text)",
+            border: m.role === "luka" ? "1px solid var(--line)" : "none",
+          }}>{m.text}</div>
+        ))}
+        {thinking && <div style={{ alignSelf: "flex-start", color: "var(--muted)", fontSize: 13, padding: "8px 13px" }}>Luka está pensando…</div>}
+        <div ref={endRef} />
+      </div>
+      <div style={{ display: "flex", gap: 8, overflowX: "auto", padding: "8px 14px 0", borderTop: "1px solid var(--line)" }}>
+        {chips.map((c) => (
+          <button key={c} className="btn ghost" style={{ whiteSpace: "nowrap", padding: "6px 12px", fontSize: 11, flexShrink: 0 }}
+            onClick={() => void send(c)} disabled={thinking}>{c}</button>
+        ))}
+      </div>
+      <div style={{ display: "flex", gap: 10, padding: "10px 14px 14px" }}>
+        <input
+          style={{ flex: 1, background: "rgba(255,255,255,.07)", border: "1px solid var(--line)", borderRadius: 14, padding: "11px 13px", color: "var(--text)", outline: "none", fontSize: 13 }}
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); void send(); } }}
+          placeholder="Pregúntale a Luka…"
+          disabled={thinking}
+        />
+        <button className="btn primary" style={{ padding: "11px 14px" }} onClick={() => void send()} disabled={thinking}>
+          <svg viewBox="0 0 24 24" style={{ width: 18, height: 18, fill: "none", stroke: "currentColor", strokeWidth: 2, strokeLinecap: "round", strokeLinejoin: "round" }}><path d="m22 2-7 20-4-9-9-4Z" /></svg>
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ─── Main export ──────────────────────────────────────────────────────────────
 export default function GastroAdmin({ authStaff, onSignOut }: GastroAdminProps) {
   const initialRole: StaffRole = authStaff?.role === "admin" ? "admin" : "camarero";
   const [role] = useState<StaffRole>(initialRole);
   const [tab, setTab] = useState<TabId>("dashboard");
+  const [lukaOpen, setLukaOpen] = useState(false);
   const state = useBackofficeState();
 
   const staffId = useMemo(() => {
@@ -1499,6 +1590,19 @@ export default function GastroAdmin({ authStaff, onSignOut }: GastroAdminProps) 
     <Layout role={role} tab={safeTab} setTab={(t) => setTab(t as TabId)} authStaff={authStaff} onSignOut={onSignOut}>
       <Topbar role={role} authStaff={authStaff} state={state} />
       {content}
+
+      {/* Luka floating button */}
+      {!lukaOpen && (
+        <button
+          className="btn primary"
+          style={{ position: "fixed", right: 22, bottom: 22, zIndex: 80, width: 54, height: 54, borderRadius: 20, padding: 0, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 8px 28px rgba(217,164,65,.35)" }}
+          onClick={() => setLukaOpen(true)}
+          title="Abrir Luka"
+        >
+          {icons.spark}
+        </button>
+      )}
+      {lukaOpen && <LukaChat authStaff={authStaff} onClose={() => setLukaOpen(false)} />}
     </Layout>
   );
 }

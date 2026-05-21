@@ -574,79 +574,85 @@ function Feedback({
 
 interface AiMsg { role: "ai" | "user"; text: string }
 
-function aiReply(q: string, menuItems: MenuItem[], go: (t: Tab) => void, callWaiter: (r: string) => void): string {
-  const lower = q.toLowerCase();
-  if (lower.includes("cuenta") || lower.includes("pagar") || lower.includes("cobro")) {
-    setTimeout(() => go("bill"), 300);
-    return "Te llevo a la cuenta. El camarero irá a la mesa para realizar el cobro.";
+async function callLuka(
+  message: string,
+  ctx: { tableId: number; sessionId: string; qrToken: string; restaurantId: string } | null
+): Promise<string> {
+  try {
+    const res = await fetch("/api/luka", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        message,
+        table_id: ctx?.tableId ?? null,
+        session_id: ctx?.sessionId ?? "",
+        qr_token: ctx?.qrToken ?? "",
+        user_role: "cliente",
+        restaurant_id: ctx?.restaurantId ?? "nido",
+      }),
+      signal: AbortSignal.timeout(15_000),
+    });
+    const data = await res.json() as { reply?: string; ok?: boolean };
+    return data.reply ?? "No pude responder. Intenta de nuevo.";
+  } catch {
+    return "Sin conexión con Luka. Intenta de nuevo.";
   }
-  if (lower.includes("mesero") || lower.includes("camarero") || lower.includes("ayuda")) {
-    callWaiter("Solicitado por asistente IA");
-    return "Listo, avisé al camarero de la mesa.";
-  }
-  if (lower.includes("estado") || lower.includes("pedido")) {
-    setTimeout(() => go("order"), 300);
-    return "Abrí el estado de cocina para que veas cada etapa del pedido.";
-  }
-  if (lower.includes("reseña") || lower.includes("review") || lower.includes("google")) {
-    setTimeout(() => go("feedback"), 300);
-    return "Te llevo a la sección de reseña.";
-  }
-  if (lower.includes("sin gluten")) {
-    const sf = menuItems.filter((m) => m.tags.some((t) => t.toLowerCase().includes("gluten")));
-    return sf.length
-      ? `Para sin gluten: ${sf.map((m) => m.name).join(", ")}. Igual recomiendo avisar alergia real al camarero.`
-      : "Para sin gluten: Branzino al Forno y Panna Cotta. Igual recomiendo avisar alergia real al camarero.";
-  }
-  if (lower.includes("recom")) {
-    return "Mi jugada: Arancini al Tartufo para abrir, Osso Buco si quieres algo potente, o Branzino si prefieres ligero.";
-  }
-  const found = menuItems.find(
-    (d) => lower.includes(d.name.toLowerCase().split(" ")[0]) || lower.includes(d.id)
-  );
-  if (found) {
-    return `${found.name}: ${found.description} Tiempo estimado ${found.avgPrepMinutes} min${found.winePair ? `, maridaje sugerido ${found.winePair}` : ""}. Alérgenos: ${found.allergens.join(", ") || "sin alérgenos declarados"}.`;
-  }
-  return "Puedo ayudarte con recomendaciones, alérgenos, estado del pedido, camarero, cuenta o reseña.";
 }
 
-function Assistant({ menuItems, go, callWaiter }: { menuItems: MenuItem[]; go: (t: Tab) => void; callWaiter: (r: string) => void }) {
+function Assistant({
+  tableCtx,
+  go,
+  callWaiter,
+}: {
+  tableCtx: { tableId: number; sessionId: string; qrToken: string; restaurantId: string } | null;
+  go: (t: Tab) => void;
+  callWaiter: (r: string) => void;
+}) {
   const [msgs, setMsgs] = useState<AiMsg[]>([
-    { role: "ai", text: "Soy Luca. Puedo recomendar platos, explicar alérgenos, llamar al camarero, revisar tu pedido, pedir la cuenta o ayudarte a dejar una reseña." },
+    { role: "ai", text: "Soy Luka, tu asistente en NIDO. Puedo recomendarte platos, llamar al camarero, o pedir la cuenta. ¿En qué te ayudo?" },
   ]);
   const [text, setText] = useState("");
+  const [thinking, setThinking] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [msgs]);
 
-  const send = useCallback((value = text) => {
+  const send = useCallback(async (value = text) => {
     const q = value.trim();
-    if (!q) return;
+    if (!q || thinking) return;
     setText("");
-    const reply = aiReply(q, menuItems, go, callWaiter);
-    setMsgs((m) => [...m, { role: "user", text: q }, { role: "ai", text: reply }]);
-  }, [text, menuItems, go, callWaiter]);
+    setMsgs((m) => [...m, { role: "user", text: q }]);
+    setThinking(true);
+    const reply = await callLuka(q, tableCtx);
+    setThinking(false);
+    // Client-side shortcuts: if Luka mentions navigating, do it
+    if (/cuenta|cobro/i.test(reply) && /tab|naveg|llevo/i.test(reply)) setTimeout(() => go("bill"), 400);
+    if (/pedido|cocina/i.test(reply) && /tab|naveg|llevo/i.test(reply)) setTimeout(() => go("order"), 400);
+    setMsgs((m) => [...m, { role: "ai", text: reply }]);
+  }, [text, thinking, tableCtx, go]);
 
-  const chips = ["¿Qué recomiendas?", "¿Sin gluten?", "Ver estado", "Pedir cuenta", "Llamar camarero", "Dejar reseña"];
+  const chips = ["¿Qué recomiendas?", "¿Hay sin gluten?", "Ver mi pedido", "Pedir la cuenta", "Llamar camarero"];
 
   return (
     <main className="chat fade">
       <div className="messages">
         {msgs.map((m, i) => <div key={i} className={`msg ${m.role}`}>{m.text}</div>)}
+        {thinking && <div className="msg ai" style={{ opacity: 0.5 }}>Luka está pensando…</div>}
         <div ref={endRef} />
       </div>
       <div className="chips">
-        {chips.map((c) => <button key={c} onClick={() => send(c)}>{c}</button>)}
+        {chips.map((c) => <button key={c} onClick={() => send(c)} disabled={thinking}>{c}</button>)}
       </div>
       <div className="composer">
         <textarea
           rows={1}
           value={text}
           onChange={(e) => setText(e.target.value)}
-          onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
-          placeholder="Pregúntale a Luca..."
+          onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void send(); } }}
+          placeholder="Pregúntale a Luka..."
+          disabled={thinking}
         />
-        <button onClick={() => send()}>{icons.send}</button>
+        <button onClick={() => void send()} disabled={thinking}>{icons.send}</button>
       </div>
     </main>
   );
@@ -807,7 +813,7 @@ export default function GastroMesa({ qrToken }: { qrToken: string }) {
       )}
       {tab === "ai" && (
         <Assistant
-          menuItems={session.menuItems}
+          tableCtx={tableCtx}
           go={setTab}
           callWaiter={(r) => void handleCallWaiter(r)}
         />

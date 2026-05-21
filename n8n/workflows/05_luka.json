@@ -1,0 +1,222 @@
+{
+  "name": "Luka - Asistente NIDO",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "d553eaf3-6e79-4904-a234-7e47fcf7344d",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-luka",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [240, 300],
+      "webhookId": "d553eaf3-6e79-4904-a234-7e47fcf7344d"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "1",
+              "name": "message",
+              "value": "={{ ($input.first().json.body ?? $input.first().json).message ?? '' }}",
+              "type": "string"
+            },
+            {
+              "id": "2",
+              "name": "table_id",
+              "value": "={{ ($input.first().json.body ?? $input.first().json).table_id ?? null }}",
+              "type": "number"
+            },
+            {
+              "id": "3",
+              "name": "session_id",
+              "value": "={{ ($input.first().json.body ?? $input.first().json).session_id ?? '' }}",
+              "type": "string"
+            },
+            {
+              "id": "4",
+              "name": "qr_token",
+              "value": "={{ ($input.first().json.body ?? $input.first().json).qr_token ?? '' }}",
+              "type": "string"
+            },
+            {
+              "id": "5",
+              "name": "user_role",
+              "value": "={{ ($input.first().json.body ?? $input.first().json).user_role ?? 'cliente' }}",
+              "type": "string"
+            },
+            {
+              "id": "6",
+              "name": "restaurant_id",
+              "value": "={{ ($input.first().json.body ?? $input.first().json).restaurant_id ?? 'nido' }}",
+              "type": "string"
+            },
+            {
+              "id": "7",
+              "name": "prompt",
+              "value": "={{ '[Mesa:' + (($input.first().json.body ?? $input.first().json).table_id ?? '?') + ' | Sesión:' + (($input.first().json.body ?? $input.first().json).session_id ?? '?') + ' | Rol:' + (($input.first().json.body ?? $input.first().json).user_role ?? 'cliente') + ']\\n' + (($input.first().json.body ?? $input.first().json).message ?? '') }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "set-context",
+      "name": "Extraer Contexto",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.prompt }}",
+        "systemMessage": "Eres Luka, el asistente del restaurante NIDO. Eres elegante, amable y muy conciso. Respondes siempre en español.\n\nContexto del mensaje:\n- El mensaje incluye un prefijo [Mesa:X | Sesión:Y | Rol:Z] con el contexto de quien escribe.\n- Si el Rol es 'admin', 'camarero', 'cocina' o 'caja' eres un asistente de staff: puedes dar resúmenes, recomendar acciones, responder sobre el sistema.\n- Si el Rol es 'cliente' eres el asistente de mesa: ayudas con el menú, llamas al camarero, solicitas la cuenta.\n\nReglas:\n- Máximo 2-3 oraciones por respuesta.\n- Si el cliente quiere llamar al camarero, usa la herramienta 'Llamar Camarero'.\n- Si el cliente quiere pagar / pedir la cuenta, usa la herramienta 'Solicitar Cuenta'.\n- Si preguntan por el menú o platos, usa la herramienta 'Obtener Menú' primero.\n- Antes de ejecutar una acción confirma con el usuario una sola vez.\n- Nunca inventes información sobre platos o precios; consulta siempre la herramienta.",
+        "options": {}
+      },
+      "id": "ai-agent-luka",
+      "name": "Luka AI",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4o-mini"
+        },
+        "options": {}
+      },
+      "id": "openai-model",
+      "name": "OpenAI Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [520, 520],
+      "credentials": {
+        "openAiApi": {
+          "id": "SztW5Pu9qLL0P9TN",
+          "name": "OpenAi account 3"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "id": "memory",
+      "name": "Simple Memory",
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [680, 520]
+    },
+    {
+      "parameters": {
+        "name": "obtener_menu",
+        "description": "Obtiene el menú completo del restaurante con nombre, descripción, precio, alérgenos, tiempo de preparación y disponibilidad. Úsala cuando el cliente pregunte por platos, precios, alérgenos o recomendaciones.",
+        "method": "GET",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/menu_items?select=name,category,price,description,avg_prep_minutes,allergens,tags,available,wine_pair&available=eq.true&order=category",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_SERVICE_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_SERVICE_KEY }}" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "tool-menu",
+      "name": "Obtener Menú",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [840, 520]
+    },
+    {
+      "parameters": {
+        "name": "llamar_camarero",
+        "description": "Llama al camarero a la mesa. Requiere un parámetro 'reason' con el motivo (string). Úsala cuando el cliente quiera llamar al camarero o pida ayuda presencial.",
+        "method": "POST",
+        "url": "={{ $env.N8N_WEBHOOK_BASE_URL }}/webhook/camarero-call",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"restaurant_id\": \"{{ $('Extraer Contexto').first().json.restaurant_id }}\",\n  \"qr_token\": \"{{ $('Extraer Contexto').first().json.qr_token }}\",\n  \"table_id\": {{ $('Extraer Contexto').first().json.table_id }},\n  \"session_id\": \"{{ $('Extraer Contexto').first().json.session_id }}\",\n  \"reason\": \"{{ $fromAI('reason', 'Motivo por el que el cliente llama al camarero', 'string') }}\",\n  \"source\": \"luka_ai\"\n}",
+        "options": {}
+      },
+      "id": "tool-waiter",
+      "name": "Llamar Camarero",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1000, 520]
+    },
+    {
+      "parameters": {
+        "name": "solicitar_cuenta",
+        "description": "Solicita la cuenta para la mesa. Úsala cuando el cliente quiera pagar o pedir la cuenta.",
+        "method": "POST",
+        "url": "={{ $env.N8N_WEBHOOK_BASE_URL }}/webhook/bill-request",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"restaurant_id\": \"{{ $('Extraer Contexto').first().json.restaurant_id }}\",\n  \"qr_token\": \"{{ $('Extraer Contexto').first().json.qr_token }}\",\n  \"table_id\": {{ $('Extraer Contexto').first().json.table_id }},\n  \"session_id\": \"{{ $('Extraer Contexto').first().json.session_id }}\",\n  \"source\": \"luka_ai\"\n}",
+        "options": {}
+      },
+      "id": "tool-bill",
+      "name": "Solicitar Cuenta",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1160, 520]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ reply: $json.output, ok: true }) }}",
+        "options": {}
+      },
+      "id": "respond",
+      "name": "Responder",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [900, 300]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [[{ "node": "Extraer Contexto", "type": "main", "index": 0 }]]
+    },
+    "Extraer Contexto": {
+      "main": [[{ "node": "Luka AI", "type": "main", "index": 0 }]]
+    },
+    "Luka AI": {
+      "main": [[{ "node": "Responder", "type": "main", "index": 0 }]]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [[{ "node": "Luka AI", "type": "ai_languageModel", "index": 0 }]]
+    },
+    "Simple Memory": {
+      "ai_memory": [[{ "node": "Luka AI", "type": "ai_memory", "index": 0 }]]
+    },
+    "Obtener Menú": {
+      "ai_tool": [[{ "node": "Luka AI", "type": "ai_tool", "index": 0 }]]
+    },
+    "Llamar Camarero": {
+      "ai_tool": [[{ "node": "Luka AI", "type": "ai_tool", "index": 0 }]]
+    },
+    "Solicitar Cuenta": {
+      "ai_tool": [[{ "node": "Luka AI", "type": "ai_tool", "index": 0 }]]
+    }
+  },
+  "pinData": {}
+}
