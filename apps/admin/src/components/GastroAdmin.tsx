@@ -307,15 +307,15 @@ interface RoleStaffState {
 function Dashboard({ role, staffId, state }: RoleStaffState) {
   const isAdmin = role === "admin";
   const staffTables = state.tables.filter((t) => isAdmin || t.waiterId === staffId);
-  const staffOrders = state.orders.filter((o) => isAdmin || o.waiterId === staffId);
-  const staffCalls = state.calls.filter((c) => isAdmin || c.waiterId === staffId);
+  const staffOrders = state.orders.filter((o) => isAdmin || !o.waiterId || o.waiterId === staffId);
+  const staffCalls = state.calls.filter((c) => isAdmin || !c.waiterId || c.waiterId === staffId);
   const pendingMessages = state.messages
     .filter((m) => {
       if (isAdmin) return true;
       const t = state.tables.find((t) => t.id === m.tableId);
       return t?.waiterId === staffId;
     })
-    .filter((m) => m.status === "unread");
+    .filter((m) => m.status === "pendiente" || m.status === "urgente");
   const salesToday = state.tables.reduce((sum, t) => sum + t.bill, 0);
   return (
     <div className="grid">
@@ -525,7 +525,10 @@ function TableDrawer({ table, role, state, onClose }: { table: TableRow; role: S
 
 // ─── Orders ──────────────────────────────────────────────────────────────────
 function OrdersView({ role, staffId, state }: RoleStaffState) {
-  const visible = state.orders.filter((o) => role === "admin" || o.waiterId === staffId);
+  // Show all unassigned orders (waiter_id null) + own orders + all for admin
+  const visible = state.orders.filter(
+    (o) => role === "admin" || !o.waiterId || o.waiterId === staffId
+  );
   return (
     <div className="grid">
       <div className="panel">
