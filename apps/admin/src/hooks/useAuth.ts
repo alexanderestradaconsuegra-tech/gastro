@@ -69,7 +69,9 @@ export function useAuth() {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       if (session?.user?.email) {
-        const staff = await fetchStaffProfile(session.user.email);
+        const staffPromise = fetchStaffProfile(session.user.email);
+        const staffTimeout = new Promise<null>((resolve) => setTimeout(() => resolve(null), 5_000));
+        const staff = await Promise.race([staffPromise, staffTimeout]);
         setState({ session, staff, loading: false, error: null });
       } else {
         setState({ session: null, staff: null, loading: false, error: null });
@@ -81,10 +83,21 @@ export function useAuth() {
 
   const signInWithPin = useCallback(async (email: string, pin: string): Promise<{ ok: boolean; error?: string }> => {
     setState((prev) => ({ ...prev, loading: true, error: null }));
-    const { error } = await supabase.auth.signInWithPassword({ email, password: pin });
-    if (error) {
-      setState((prev) => ({ ...prev, loading: false, error: "PIN incorrecto" }));
-      return { ok: false, error: "PIN incorrecto" };
+
+    const timeout = new Promise<{ ok: false; error: string }>((resolve) =>
+      setTimeout(() => resolve({ ok: false, error: "Tiempo de espera agotado" }), 10_000)
+    );
+
+    const attempt = supabase.auth.signInWithPassword({ email, password: pin }).then(({ error }) => {
+      if (error) return { ok: false as const, error: "PIN incorrecto" };
+      return { ok: true as const };
+    });
+
+    const result = await Promise.race([attempt, timeout]);
+
+    if (!result.ok) {
+      setState((prev) => ({ ...prev, loading: false, error: result.error }));
+      return result;
     }
     return { ok: true };
   }, []);
