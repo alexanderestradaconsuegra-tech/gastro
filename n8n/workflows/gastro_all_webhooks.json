@@ -2,16 +2,34 @@
   "name": "Gastro - Todos los Webhooks",
   "nodes": [
     {
-      "parameters": { "httpMethod": "POST", "path": "order-create", "responseMode": "responseNode", "options": {} },
-      "id": "wh-order", "name": "Webhook - Order Create",
-      "type": "n8n-nodes-base.webhook", "typeVersion": 2, "position": [-400, 200], "webhookId": "order-create"
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "order-create",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "wh-order",
+      "name": "Webhook - Order Create",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -400,
+        200
+      ],
+      "webhookId": "order-create"
     },
     {
       "parameters": {
         "jsCode": "const raw = $input.first().json.body ?? $input.first().json;\nconst restaurant_id = raw.restaurant_id || raw.restaurantId || 'nido';\nconst qr_token = raw.qr_token || raw.qrToken || '';\nconst table_id = raw.table_id ?? raw.tableId ?? null;\nconst session_id = raw.session_id || raw.sessionId || null;\nconst notes = raw.notes || raw.note || null;\nconst rawItems = raw.items || [];\nif (!rawItems.length) throw new Error('items vacios');\nconst items = rawItems.map(i => ({ menu_item_id: i.menu_item_id || i.id || '', dish_name: i.dish_name || i.name || '', unit_price: i.unit_price || i.price || 0, qty: (typeof i.qty === 'number' && i.qty > 0) ? i.qty : 1 }));\nconst digits = String(Math.floor(Math.random() * 10000)).padStart(4, '0');\nconst orderId = 'ORD-' + digits;\nconst total = raw.total || items.reduce((s, i) => s + i.unit_price * i.qty, 0);\nreturn [{ json: { orderId, restaurant_id, qr_token, table_id, session_id, notes, channel: raw.channel || 'QR Mesa', priority: raw.priority || 'Normal', eta_minutes: raw.eta_minutes || 18, total, items } }];"
       },
-      "id": "validate-order", "name": "Validate Order",
-      "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [-200, 200]
+      "id": "validate-order",
+      "name": "Validate Order",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -200,
+        200
+      ]
     },
     {
       "parameters": {
@@ -19,25 +37,48 @@
         "url": "https://nlwrkumlrudfgsdnhfhw.supabase.co/rest/v1/orders",
         "authentication": "none",
         "sendHeaders": true,
-        "headerParameters": { "parameters": [
-          { "name": "apikey",        "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5sd3JrdW1scnVkZmdzZG5oZmh3Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3ODU4NzU1OCwiZXhwIjoyMDk0MTYzNTU4fQ.nYVqfJZxIUE4IQ2O-PQq0c9HSK2Bm2NfOZDViO9-krE" },
-          { "name": "Authorization", "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5sd3JrdW1scnVkZmdzZG5oZmh3Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3ODU4NzU1OCwiZXhwIjoyMDk0MTYzNTU4fQ.nYVqfJZxIUE4IQ2O-PQq0c9HSK2Bm2NfOZDViO9-krE" },
-          { "name": "Prefer",        "value": "return=minimal" }
-        ]},
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5sd3JrdW1scnVkZmdzZG5oZmh3Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3ODU4NzU1OCwiZXhwIjoyMDk0MTYzNTU4fQ.nYVqfJZxIUE4IQ2O-PQq0c9HSK2Bm2NfOZDViO9-krE"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5sd3JrdW1scnVkZmdzZG5oZmh3Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3ODU4NzU1OCwiZXhwIjoyMDk0MTYzNTU4fQ.nYVqfJZxIUE4IQ2O-PQq0c9HSK2Bm2NfOZDViO9-krE"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
         "sendBody": true,
         "contentType": "json",
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify({id: $json.orderId, restaurant_id: $json.restaurant_id, session_id: $json.session_id, table_id: $json.table_id, status: 'received', priority: $json.priority, channel: $json.channel, eta_minutes: $json.eta_minutes, notes: $json.notes, total: $json.total}) }}"
       },
-      "id": "insert-order", "name": "Insert Order",
-      "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [0, 200]
+      "id": "insert-order",
+      "name": "Insert Order",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        0,
+        200
+      ]
     },
     {
       "parameters": {
         "jsCode": "const data = $('Validate Order').item.json;\nreturn data.items.map(i => ({ json: { order_id: data.orderId, menu_item_id: i.menu_item_id, dish_name: i.dish_name, qty: i.qty, unit_price: i.unit_price, status: 'pending' } }));"
       },
-      "id": "split-items", "name": "Split Order Items",
-      "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [200, 200]
+      "id": "split-items",
+      "name": "Split Order Items",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        200,
+        200
+      ]
     },
     {
       "parameters": {
@@ -45,18 +86,35 @@
         "url": "https://nlwrkumlrudfgsdnhfhw.supabase.co/rest/v1/order_items",
         "authentication": "none",
         "sendHeaders": true,
-        "headerParameters": { "parameters": [
-          { "name": "apikey",        "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5sd3JrdW1scnVkZmdzZG5oZmh3Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3ODU4NzU1OCwiZXhwIjoyMDk0MTYzNTU4fQ.nYVqfJZxIUE4IQ2O-PQq0c9HSK2Bm2NfOZDViO9-krE" },
-          { "name": "Authorization", "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5sd3JrdW1scnVkZmdzZG5oZmh3Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3ODU4NzU1OCwiZXhwIjoyMDk0MTYzNTU4fQ.nYVqfJZxIUE4IQ2O-PQq0c9HSK2Bm2NfOZDViO9-krE" },
-          { "name": "Prefer",        "value": "return=minimal" }
-        ]},
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5sd3JrdW1scnVkZmdzZG5oZmh3Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3ODU4NzU1OCwiZXhwIjoyMDk0MTYzNTU4fQ.nYVqfJZxIUE4IQ2O-PQq0c9HSK2Bm2NfOZDViO9-krE"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5sd3JrdW1scnVkZmdzZG5oZmh3Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3ODU4NzU1OCwiZXhwIjoyMDk0MTYzNTU4fQ.nYVqfJZxIUE4IQ2O-PQq0c9HSK2Bm2NfOZDViO9-krE"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
         "sendBody": true,
         "contentType": "json",
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify($json) }}"
       },
-      "id": "insert-items", "name": "Insert Order Items",
-      "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [400, 200]
+      "id": "insert-items",
+      "name": "Insert Order Items",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        400,
+        200
+      ]
     },
     {
       "parameters": {
@@ -64,36 +122,82 @@
         "url": "=https://nlwrkumlrudfgsdnhfhw.supabase.co/rest/v1/tables?qr_token=eq.{{ $('Validate Order').first().json.qr_token }}",
         "authentication": "none",
         "sendHeaders": true,
-        "headerParameters": { "parameters": [
-          { "name": "apikey",        "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5sd3JrdW1scnVkZmdzZG5oZmh3Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3ODU4NzU1OCwiZXhwIjoyMDk0MTYzNTU4fQ.nYVqfJZxIUE4IQ2O-PQq0c9HSK2Bm2NfOZDViO9-krE" },
-          { "name": "Authorization", "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5sd3JrdW1scnVkZmdzZG5oZmh3Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3ODU4NzU1OCwiZXhwIjoyMDk0MTYzNTU4fQ.nYVqfJZxIUE4IQ2O-PQq0c9HSK2Bm2NfOZDViO9-krE" },
-          { "name": "Prefer",        "value": "return=minimal" }
-        ]},
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5sd3JrdW1scnVkZmdzZG5oZmh3Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3ODU4NzU1OCwiZXhwIjoyMDk0MTYzNTU4fQ.nYVqfJZxIUE4IQ2O-PQq0c9HSK2Bm2NfOZDViO9-krE"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5sd3JrdW1scnVkZmdzZG5oZmh3Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3ODU4NzU1OCwiZXhwIjoyMDk0MTYzNTU4fQ.nYVqfJZxIUE4IQ2O-PQq0c9HSK2Bm2NfOZDViO9-krE"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
         "sendBody": true,
         "contentType": "json",
         "specifyBody": "json",
-        "jsonBody": "{\"status\":\"Pedido nuevo\"}"
+        "jsonBody": "={{ JSON.stringify({status: 'Pedido nuevo', bill_total: $('Validate Order').first().json.total || 0, guests: $('Validate Order').first().json.guests || 1}) }}"
       },
-      "id": "update-table-order", "name": "Update Table - Pedido nuevo",
-      "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [600, 200]
+      "id": "update-table-order",
+      "name": "Update Table - Pedido nuevo",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        600,
+        200
+      ]
     },
     {
-      "parameters": { "respondWith": "json", "responseBody": "={{ JSON.stringify({ok: true, orderId: $('Validate Order').first().json.orderId}) }}", "options": { "responseCode": 201 } },
-      "id": "respond-order", "name": "Respond - Order OK",
-      "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [800, 200]
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ok: true, orderId: $('Validate Order').first().json.orderId}) }}",
+        "options": {
+          "responseCode": 201
+        }
+      },
+      "id": "respond-order",
+      "name": "Respond - Order OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        800,
+        200
+      ]
     },
-
     {
-      "parameters": { "httpMethod": "POST", "path": "camarero-call", "responseMode": "responseNode", "options": {} },
-      "id": "wh-camarero", "name": "Webhook - Camarero Call",
-      "type": "n8n-nodes-base.webhook", "typeVersion": 2, "position": [-400, 440], "webhookId": "camarero-call"
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "camarero-call",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "wh-camarero",
+      "name": "Webhook - Camarero Call",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -400,
+        440
+      ],
+      "webhookId": "camarero-call"
     },
     {
       "parameters": {
         "jsCode": "const raw = $input.first().json.body ?? $input.first().json;\nconst callId = 'C-' + Math.random().toString(36).slice(2,10).toUpperCase();\nconst callType = raw.call_type || raw.reason || 'Camarero';\nlet priority = 'Normal';\nif (callType.toLowerCase().includes('alergi')) priority = 'Critica';\nelse if (callType.toLowerCase().includes('urgente') || callType.toLowerCase().includes('cuenta')) priority = 'Alta';\nlet tableStatus = 'Camarero ocupado';\nif (callType.toLowerCase().includes('cuenta') || callType.toLowerCase().includes('cobro')) tableStatus = 'Solicita cobro';\nreturn [{ json: { callId, restaurant_id: raw.restaurant_id || raw.restaurantId || 'nido', qr_token: raw.qr_token || raw.qrToken || '', table_id: raw.table_id ?? raw.tableId ?? null, call_type: callType, priority, message: callType, tableStatus } }];"
       },
-      "id": "validate-camarero", "name": "Validate Camarero",
-      "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [-200, 440]
+      "id": "validate-camarero",
+      "name": "Validate Camarero",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -200,
+        440
+      ]
     },
     {
       "parameters": {
@@ -101,18 +205,35 @@
         "url": "https://nlwrkumlrudfgsdnhfhw.supabase.co/rest/v1/calls",
         "authentication": "none",
         "sendHeaders": true,
-        "headerParameters": { "parameters": [
-          { "name": "apikey",        "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5sd3JrdW1scnVkZmdzZG5oZmh3Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3ODU4NzU1OCwiZXhwIjoyMDk0MTYzNTU4fQ.nYVqfJZxIUE4IQ2O-PQq0c9HSK2Bm2NfOZDViO9-krE" },
-          { "name": "Authorization", "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5sd3JrdW1scnVkZmdzZG5oZmh3Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3ODU4NzU1OCwiZXhwIjoyMDk0MTYzNTU4fQ.nYVqfJZxIUE4IQ2O-PQq0c9HSK2Bm2NfOZDViO9-krE" },
-          { "name": "Prefer",        "value": "return=minimal" }
-        ]},
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5sd3JrdW1scnVkZmdzZG5oZmh3Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3ODU4NzU1OCwiZXhwIjoyMDk0MTYzNTU4fQ.nYVqfJZxIUE4IQ2O-PQq0c9HSK2Bm2NfOZDViO9-krE"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5sd3JrdW1scnVkZmdzZG5oZmh3Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3ODU4NzU1OCwiZXhwIjoyMDk0MTYzNTU4fQ.nYVqfJZxIUE4IQ2O-PQq0c9HSK2Bm2NfOZDViO9-krE"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
         "sendBody": true,
         "contentType": "json",
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify({id: $json.callId, restaurant_id: $json.restaurant_id, table_id: $json.table_id, source: 'mesa', call_type: $json.call_type, priority: $json.priority, status: 'Pendiente', message: $json.message}) }}"
       },
-      "id": "insert-call", "name": "Insert Call",
-      "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [0, 440]
+      "id": "insert-call",
+      "name": "Insert Call",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        0,
+        440
+      ]
     },
     {
       "parameters": {
@@ -120,36 +241,82 @@
         "url": "=https://nlwrkumlrudfgsdnhfhw.supabase.co/rest/v1/tables?qr_token=eq.{{ $('Validate Camarero').first().json.qr_token }}",
         "authentication": "none",
         "sendHeaders": true,
-        "headerParameters": { "parameters": [
-          { "name": "apikey",        "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5sd3JrdW1scnVkZmdzZG5oZmh3Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3ODU4NzU1OCwiZXhwIjoyMDk0MTYzNTU4fQ.nYVqfJZxIUE4IQ2O-PQq0c9HSK2Bm2NfOZDViO9-krE" },
-          { "name": "Authorization", "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5sd3JrdW1scnVkZmdzZG5oZmh3Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3ODU4NzU1OCwiZXhwIjoyMDk0MTYzNTU4fQ.nYVqfJZxIUE4IQ2O-PQq0c9HSK2Bm2NfOZDViO9-krE" },
-          { "name": "Prefer",        "value": "return=minimal" }
-        ]},
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5sd3JrdW1scnVkZmdzZG5oZmh3Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3ODU4NzU1OCwiZXhwIjoyMDk0MTYzNTU4fQ.nYVqfJZxIUE4IQ2O-PQq0c9HSK2Bm2NfOZDViO9-krE"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5sd3JrdW1scnVkZmdzZG5oZmh3Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3ODU4NzU1OCwiZXhwIjoyMDk0MTYzNTU4fQ.nYVqfJZxIUE4IQ2O-PQq0c9HSK2Bm2NfOZDViO9-krE"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
         "sendBody": true,
         "contentType": "json",
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify({status: $('Validate Camarero').first().json.tableStatus}) }}"
       },
-      "id": "update-table-camarero", "name": "Update Table - Camarero",
-      "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [200, 440]
+      "id": "update-table-camarero",
+      "name": "Update Table - Camarero",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        200,
+        440
+      ]
     },
     {
-      "parameters": { "respondWith": "json", "responseBody": "={{ JSON.stringify({ok: true, callId: $('Validate Camarero').first().json.callId}) }}", "options": { "responseCode": 201 } },
-      "id": "respond-camarero", "name": "Respond - Camarero OK",
-      "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [400, 440]
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ok: true, callId: $('Validate Camarero').first().json.callId}) }}",
+        "options": {
+          "responseCode": 201
+        }
+      },
+      "id": "respond-camarero",
+      "name": "Respond - Camarero OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        400,
+        440
+      ]
     },
-
     {
-      "parameters": { "httpMethod": "POST", "path": "bill-request", "responseMode": "responseNode", "options": {} },
-      "id": "wh-bill", "name": "Webhook - Bill Request",
-      "type": "n8n-nodes-base.webhook", "typeVersion": 2, "position": [-400, 660], "webhookId": "bill-request"
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "bill-request",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "wh-bill",
+      "name": "Webhook - Bill Request",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -400,
+        660
+      ],
+      "webhookId": "bill-request"
     },
     {
       "parameters": {
         "jsCode": "const raw = $input.first().json.body ?? $input.first().json;\nconst callId = 'C-' + Math.random().toString(36).slice(2,10).toUpperCase();\nreturn [{ json: { callId, restaurant_id: raw.restaurant_id || raw.restaurantId || 'nido', qr_token: raw.qr_token || raw.qrToken || '', table_id: raw.table_id ?? raw.tableId ?? null } }];"
       },
-      "id": "validate-bill", "name": "Validate Bill",
-      "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [-200, 660]
+      "id": "validate-bill",
+      "name": "Validate Bill",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -200,
+        660
+      ]
     },
     {
       "parameters": {
@@ -157,18 +324,35 @@
         "url": "https://nlwrkumlrudfgsdnhfhw.supabase.co/rest/v1/calls",
         "authentication": "none",
         "sendHeaders": true,
-        "headerParameters": { "parameters": [
-          { "name": "apikey",        "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5sd3JrdW1scnVkZmdzZG5oZmh3Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3ODU4NzU1OCwiZXhwIjoyMDk0MTYzNTU4fQ.nYVqfJZxIUE4IQ2O-PQq0c9HSK2Bm2NfOZDViO9-krE" },
-          { "name": "Authorization", "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5sd3JrdW1scnVkZmdzZG5oZmh3Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3ODU4NzU1OCwiZXhwIjoyMDk0MTYzNTU4fQ.nYVqfJZxIUE4IQ2O-PQq0c9HSK2Bm2NfOZDViO9-krE" },
-          { "name": "Prefer",        "value": "return=minimal" }
-        ]},
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5sd3JrdW1scnVkZmdzZG5oZmh3Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3ODU4NzU1OCwiZXhwIjoyMDk0MTYzNTU4fQ.nYVqfJZxIUE4IQ2O-PQq0c9HSK2Bm2NfOZDViO9-krE"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5sd3JrdW1scnVkZmdzZG5oZmh3Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3ODU4NzU1OCwiZXhwIjoyMDk0MTYzNTU4fQ.nYVqfJZxIUE4IQ2O-PQq0c9HSK2Bm2NfOZDViO9-krE"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
         "sendBody": true,
         "contentType": "json",
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify({id: $json.callId, restaurant_id: $json.restaurant_id, table_id: $json.table_id, source: 'mesa', call_type: 'Solicita cobro', priority: 'Alta', status: 'Pendiente', message: 'Solicita la cuenta'}) }}"
       },
-      "id": "insert-bill-call", "name": "Insert Bill Call",
-      "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [0, 660]
+      "id": "insert-bill-call",
+      "name": "Insert Bill Call",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        0,
+        660
+      ]
     },
     {
       "parameters": {
@@ -176,36 +360,82 @@
         "url": "=https://nlwrkumlrudfgsdnhfhw.supabase.co/rest/v1/tables?qr_token=eq.{{ $('Validate Bill').first().json.qr_token }}",
         "authentication": "none",
         "sendHeaders": true,
-        "headerParameters": { "parameters": [
-          { "name": "apikey",        "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5sd3JrdW1scnVkZmdzZG5oZmh3Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3ODU4NzU1OCwiZXhwIjoyMDk0MTYzNTU4fQ.nYVqfJZxIUE4IQ2O-PQq0c9HSK2Bm2NfOZDViO9-krE" },
-          { "name": "Authorization", "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5sd3JrdW1scnVkZmdzZG5oZmh3Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3ODU4NzU1OCwiZXhwIjoyMDk0MTYzNTU4fQ.nYVqfJZxIUE4IQ2O-PQq0c9HSK2Bm2NfOZDViO9-krE" },
-          { "name": "Prefer",        "value": "return=minimal" }
-        ]},
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5sd3JrdW1scnVkZmdzZG5oZmh3Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3ODU4NzU1OCwiZXhwIjoyMDk0MTYzNTU4fQ.nYVqfJZxIUE4IQ2O-PQq0c9HSK2Bm2NfOZDViO9-krE"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5sd3JrdW1scnVkZmdzZG5oZmh3Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3ODU4NzU1OCwiZXhwIjoyMDk0MTYzNTU4fQ.nYVqfJZxIUE4IQ2O-PQq0c9HSK2Bm2NfOZDViO9-krE"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
         "sendBody": true,
         "contentType": "json",
         "specifyBody": "json",
         "jsonBody": "{\"status\":\"Solicita cobro\"}"
       },
-      "id": "update-table-bill", "name": "Update Table - Solicita Cobro",
-      "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [200, 660]
+      "id": "update-table-bill",
+      "name": "Update Table - Solicita Cobro",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        200,
+        660
+      ]
     },
     {
-      "parameters": { "respondWith": "json", "responseBody": "{\"ok\":true}", "options": { "responseCode": 201 } },
-      "id": "respond-bill", "name": "Respond - Bill OK",
-      "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [400, 660]
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\"ok\":true}",
+        "options": {
+          "responseCode": 201
+        }
+      },
+      "id": "respond-bill",
+      "name": "Respond - Bill OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        400,
+        660
+      ]
     },
-
     {
-      "parameters": { "httpMethod": "POST", "path": "feedback", "responseMode": "responseNode", "options": {} },
-      "id": "wh-feedback", "name": "Webhook - Feedback",
-      "type": "n8n-nodes-base.webhook", "typeVersion": 2, "position": [-400, 880], "webhookId": "feedback"
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "feedback",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "wh-feedback",
+      "name": "Webhook - Feedback",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -400,
+        880
+      ],
+      "webhookId": "feedback"
     },
     {
       "parameters": {
         "jsCode": "const raw = $input.first().json.body ?? $input.first().json;\nconst rating = parseInt(raw.rating, 10);\nif (isNaN(rating) || rating < 1 || rating > 5) throw new Error('rating must be 1-5');\nlet comment = null;\nif (raw.comment && typeof raw.comment === 'string') { comment = raw.comment.replace(/<[^>]*>/g,'').trim().slice(0,1000) || null; }\nreturn [{ json: { restaurant_id: raw.restaurant_id || raw.restaurantId || 'nido', table_id: raw.table_id ?? raw.tableId ?? null, rating, comment, source: raw.source || 'table_qr' } }];"
       },
-      "id": "validate-feedback", "name": "Validate Feedback",
-      "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [-200, 880]
+      "id": "validate-feedback",
+      "name": "Validate Feedback",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -200,
+        880
+      ]
     },
     {
       "parameters": {
@@ -213,47 +443,248 @@
         "url": "https://nlwrkumlrudfgsdnhfhw.supabase.co/rest/v1/reviews",
         "authentication": "none",
         "sendHeaders": true,
-        "headerParameters": { "parameters": [
-          { "name": "apikey",        "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5sd3JrdW1scnVkZmdzZG5oZmh3Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3ODU4NzU1OCwiZXhwIjoyMDk0MTYzNTU4fQ.nYVqfJZxIUE4IQ2O-PQq0c9HSK2Bm2NfOZDViO9-krE" },
-          { "name": "Authorization", "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5sd3JrdW1scnVkZmdzZG5oZmh3Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3ODU4NzU1OCwiZXhwIjoyMDk0MTYzNTU4fQ.nYVqfJZxIUE4IQ2O-PQq0c9HSK2Bm2NfOZDViO9-krE" },
-          { "name": "Prefer",        "value": "return=minimal" }
-        ]},
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5sd3JrdW1scnVkZmdzZG5oZmh3Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3ODU4NzU1OCwiZXhwIjoyMDk0MTYzNTU4fQ.nYVqfJZxIUE4IQ2O-PQq0c9HSK2Bm2NfOZDViO9-krE"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5sd3JrdW1scnVkZmdzZG5oZmh3Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3ODU4NzU1OCwiZXhwIjoyMDk0MTYzNTU4fQ.nYVqfJZxIUE4IQ2O-PQq0c9HSK2Bm2NfOZDViO9-krE"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
         "sendBody": true,
         "contentType": "json",
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify($json) }}"
       },
-      "id": "insert-review", "name": "Insert Review",
-      "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [0, 880]
+      "id": "insert-review",
+      "name": "Insert Review",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        0,
+        880
+      ]
     },
     {
-      "parameters": { "respondWith": "json", "responseBody": "{\"ok\":true}", "options": { "responseCode": 201 } },
-      "id": "respond-feedback", "name": "Respond - Feedback OK",
-      "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [200, 880]
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\"ok\":true}",
+        "options": {
+          "responseCode": 201
+        }
+      },
+      "id": "respond-feedback",
+      "name": "Respond - Feedback OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        200,
+        880
+      ]
     }
   ],
   "pinData": {},
   "connections": {
-    "Webhook - Order Create":        { "main": [[{ "node": "Validate Order",             "type": "main", "index": 0 }]] },
-    "Validate Order":                { "main": [[{ "node": "Insert Order",               "type": "main", "index": 0 }]] },
-    "Insert Order":                  { "main": [[{ "node": "Split Order Items",           "type": "main", "index": 0 }]] },
-    "Split Order Items":             { "main": [[{ "node": "Insert Order Items",          "type": "main", "index": 0 }]] },
-    "Insert Order Items":            { "main": [[{ "node": "Update Table - Pedido nuevo", "type": "main", "index": 0 }]] },
-    "Update Table - Pedido nuevo":   { "main": [[{ "node": "Respond - Order OK",          "type": "main", "index": 0 }]] },
-    "Webhook - Camarero Call":       { "main": [[{ "node": "Validate Camarero",           "type": "main", "index": 0 }]] },
-    "Validate Camarero":             { "main": [[{ "node": "Insert Call",                 "type": "main", "index": 0 }]] },
-    "Insert Call":                   { "main": [[{ "node": "Update Table - Camarero",     "type": "main", "index": 0 }]] },
-    "Update Table - Camarero":       { "main": [[{ "node": "Respond - Camarero OK",       "type": "main", "index": 0 }]] },
-    "Webhook - Bill Request":        { "main": [[{ "node": "Validate Bill",               "type": "main", "index": 0 }]] },
-    "Validate Bill":                 { "main": [[{ "node": "Insert Bill Call",             "type": "main", "index": 0 }]] },
-    "Insert Bill Call":              { "main": [[{ "node": "Update Table - Solicita Cobro", "type": "main", "index": 0 }]] },
-    "Update Table - Solicita Cobro": { "main": [[{ "node": "Respond - Bill OK",            "type": "main", "index": 0 }]] },
-    "Webhook - Feedback":            { "main": [[{ "node": "Validate Feedback",            "type": "main", "index": 0 }]] },
-    "Validate Feedback":             { "main": [[{ "node": "Insert Review",                "type": "main", "index": 0 }]] },
-    "Insert Review":                 { "main": [[{ "node": "Respond - Feedback OK",        "type": "main", "index": 0 }]] }
+    "Webhook - Order Create": {
+      "main": [
+        [
+          {
+            "node": "Validate Order",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Order": {
+      "main": [
+        [
+          {
+            "node": "Insert Order",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert Order": {
+      "main": [
+        [
+          {
+            "node": "Split Order Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Order Items": {
+      "main": [
+        [
+          {
+            "node": "Insert Order Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert Order Items": {
+      "main": [
+        [
+          {
+            "node": "Update Table - Pedido nuevo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Table - Pedido nuevo": {
+      "main": [
+        [
+          {
+            "node": "Respond - Order OK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook - Camarero Call": {
+      "main": [
+        [
+          {
+            "node": "Validate Camarero",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Camarero": {
+      "main": [
+        [
+          {
+            "node": "Insert Call",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert Call": {
+      "main": [
+        [
+          {
+            "node": "Update Table - Camarero",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Table - Camarero": {
+      "main": [
+        [
+          {
+            "node": "Respond - Camarero OK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook - Bill Request": {
+      "main": [
+        [
+          {
+            "node": "Validate Bill",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Bill": {
+      "main": [
+        [
+          {
+            "node": "Insert Bill Call",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert Bill Call": {
+      "main": [
+        [
+          {
+            "node": "Update Table - Solicita Cobro",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Table - Solicita Cobro": {
+      "main": [
+        [
+          {
+            "node": "Respond - Bill OK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook - Feedback": {
+      "main": [
+        [
+          {
+            "node": "Validate Feedback",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Feedback": {
+      "main": [
+        [
+          {
+            "node": "Insert Review",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert Review": {
+      "main": [
+        [
+          {
+            "node": "Respond - Feedback OK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
   },
   "active": true,
-  "settings": { "executionOrder": "v1" },
+  "settings": {
+    "executionOrder": "v1"
+  },
   "id": "gastro-all-webhooks",
   "tags": []
 }

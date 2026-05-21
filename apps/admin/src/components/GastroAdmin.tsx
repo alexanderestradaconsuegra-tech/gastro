@@ -254,19 +254,44 @@ function Layout({ role, tab, setTab, authStaff, onSignOut, children }: LayoutPro
 }
 
 // ─── Topbar ──────────────────────────────────────────────────────────────────
-function Topbar({ role, authStaff }: { role: StaffRole; authStaff?: StaffProfile }) {
+function Topbar({ role, authStaff, state }: { role: StaffRole; authStaff?: StaffProfile; state: BackofficeState }) {
+  const statusColor = state.dbStatus === "ok" ? "#34d399" : state.dbStatus === "error" ? "#f87171" : "#f59e0b";
+  const statusLabel = state.dbStatus === "ok"
+    ? `${state.tables.length} mesas · ${state.orders.filter(o => o.status !== "served" && o.status !== "cancelled").length} pedidos activos`
+    : state.dbStatus === "error"
+    ? `Sin conexión a BD`
+    : "Conectando...";
+
   return (
-    <div className="topbar">
-      <div className="title">
-        <h1>{role === "admin" ? "Control total del restaurante" : "Operación de camarero"}</h1>
-        <p>{RESTAURANT.location} · Servicio {RESTAURANT.service}</p>
-      </div>
-      <div className="operator">
-        <StaffAvatar staff={authStaff ? { name: authStaff.name, email: authStaff.email } : null} />
-        <div>
-          <b>{authStaff?.name ?? "—"}</b>
-          <small style={{ display: "block", color: "var(--muted)" }}>{authStaff?.shift ?? ""}</small>
+    <div style={{ display: "flex", flexDirection: "column" }}>
+      <div className="topbar">
+        <div className="title">
+          <h1>{role === "admin" ? "Control total del restaurante" : "Operación de camarero"}</h1>
+          <p>{RESTAURANT.location} · Servicio {RESTAURANT.service}</p>
         </div>
+        <div className="operator">
+          <StaffAvatar staff={authStaff ? { name: authStaff.name, email: authStaff.email } : null} />
+          <div>
+            <b>{authStaff?.name ?? "—"}</b>
+            <small style={{ display: "block", color: "var(--muted)" }}>{authStaff?.shift ?? ""}</small>
+          </div>
+        </div>
+      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "6px 20px", background: "rgba(0,0,0,0.2)", borderBottom: "1px solid rgba(255,255,255,0.05)", fontSize: 12 }}>
+        <span style={{ width: 8, height: 8, borderRadius: "50%", background: statusColor, display: "inline-block", flexShrink: 0 }} />
+        <span style={{ color: "var(--muted)" }}>{statusLabel}</span>
+        {state.lastSync && (
+          <span style={{ color: "var(--muted)", marginLeft: 4 }}>
+            · Últ. sync {state.lastSync.toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+          </span>
+        )}
+        {state.dbError && <span style={{ color: "#f87171", marginLeft: 4 }}>{state.dbError}</span>}
+        <button
+          onClick={state.refreshNow}
+          style={{ marginLeft: "auto", background: "none", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 4, color: "var(--muted)", padding: "2px 10px", cursor: "pointer", fontSize: 11 }}
+        >
+          Actualizar
+        </button>
       </div>
     </div>
   );
@@ -1468,7 +1493,7 @@ export default function GastroAdmin({ authStaff, onSignOut }: GastroAdminProps) 
 
   return (
     <Layout role={role} tab={safeTab} setTab={(t) => setTab(t as TabId)} authStaff={authStaff} onSignOut={onSignOut}>
-      <Topbar role={role} authStaff={authStaff} />
+      <Topbar role={role} authStaff={authStaff} state={state} />
       {content}
     </Layout>
   );

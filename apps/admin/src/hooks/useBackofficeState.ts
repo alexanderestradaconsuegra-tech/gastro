@@ -33,7 +33,11 @@ export interface BackofficeState {
   reviews: Review[];
   qrTokens: QrToken[];
   demoMode: boolean;
+  dbStatus: "ok" | "error" | "loading";
+  dbError: string | null;
+  lastSync: Date | null;
   setDemoMode: (v: boolean) => void;
+  refreshNow: () => void;
   updateOrderStatus: (orderId: string, status: OrderStatus) => void;
   closeTable: (tableId: number, paymentMethod: "cash" | "card" | "transfer", amount: number, tipAmount: number) => void;
   attendCall: (callId: string) => void;
@@ -201,6 +205,10 @@ export function useBackofficeState(): BackofficeState {
   const [reviews, setReviews] = useState<Review[]>([]);
   const [demoMode, setDemoMode] = useState(false);
   const [qrTokens, setQrTokens] = useState<QrToken[]>([]);
+  const [dbStatus, setDbStatus] = useState<"ok" | "error" | "loading">("loading");
+  const [dbError, setDbError] = useState<string | null>(null);
+  const [lastSync, setLastSync] = useState<Date | null>(null);
+  const refreshRef = useRef<(() => void) | null>(null);
 
   const supabaseAvailable = useRef(
     !!(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)
@@ -210,7 +218,11 @@ export function useBackofficeState(): BackofficeState {
   // order_items may not be in supabase_realtime publication, so we poll.
   // Fires on mount (immediate) and every 10 s.
   useEffect(() => {
-    if (!supabaseAvailable.current) return;
+    if (!supabaseAvailable.current) {
+      setDbStatus("error");
+      setDbError("Variables de entorno NEXT_PUBLIC_SUPABASE_URL o NEXT_PUBLIC_SUPABASE_ANON_KEY no configuradas");
+      return;
+    }
 
     async function refreshOrders() {
       const { data: ordersData, error } = await supabase
@@ -218,7 +230,12 @@ export function useBackofficeState(): BackofficeState {
         .select("*")
         .order("created_at", { ascending: false })
         .limit(200);
-      if (error || !ordersData) return;
+      if (error) {
+        setDbStatus("error");
+        setDbError(`Error al cargar pedidos: ${error.message}`);
+        return;
+      }
+      if (!ordersData) return;
 
       const ids = ordersData.map((o) => o.id as string);
       const { data: itemsData } = ids.length
@@ -238,8 +255,12 @@ export function useBackofficeState(): BackofficeState {
           items: (byOrder[o.id as string] ?? []).map(mapDbOrderItem),
         }))
       );
+      setDbStatus("ok");
+      setDbError(null);
+      setLastSync(new Date());
     }
 
+    refreshRef.current = refreshOrders;
     refreshOrders();
     const interval = setInterval(refreshOrders, 10_000);
     return () => clearInterval(interval);
@@ -575,6 +596,10 @@ export function useBackofficeState(): BackofficeState {
     supabase.from("staff").update({ avatar_url: url }).eq("id", staffId);
   }, []);
 
+  const refreshNow = useCallback(() => {
+    refreshRef.current?.();
+  }, []);
+
   return {
     orders,
     calls,
@@ -588,7 +613,11 @@ export function useBackofficeState(): BackofficeState {
     reviews,
     qrTokens,
     demoMode,
+    dbStatus,
+    dbError,
+    lastSync,
     setDemoMode,
+    refreshNow,
     updateOrderStatus,
     closeTable,
     attendCall,
