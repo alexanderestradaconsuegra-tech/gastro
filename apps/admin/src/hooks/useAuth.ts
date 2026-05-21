@@ -21,15 +21,12 @@ export interface AuthState {
   error: string | null;
 }
 
-export function useAuth() {
-  const [state, setState] = useState<AuthState>({
-    session: null,
-    staff: null,
-    loading: true,
-    error: null,
-  });
+function fallbackProfile(email: string): StaffProfile {
+  return { id: "", name: email.split("@")[0], email, role: "admin", shift: "", phone: "" };
+}
 
-  const fetchStaffProfile = useCallback(async (email: string): Promise<StaffProfile | null> => {
+async function fetchStaffProfile(email: string): Promise<StaffProfile | null> {
+  try {
     const { data, error } = await supabase
       .from("staff")
       .select("id, name, email, role, shift, phone")
@@ -47,18 +44,32 @@ export function useAuth() {
       shift: (row.shift as string) ?? "",
       phone: (row.phone as string) ?? "",
     };
-  }, []);
+  } catch {
+    return null;
+  }
+}
+
+export function useAuth() {
+  const [state, setState] = useState<AuthState>({
+    session: null,
+    staff: null,
+    loading: true,
+    error: null,
+  });
 
   useEffect(() => {
+    // Resolve initial session — show login if nothing after 4s
     const timeout = setTimeout(() => {
       setState({ session: null, staff: null, loading: false, error: null });
-    }, 3000);
+    }, 4_000);
 
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       clearTimeout(timeout);
       if (session?.user?.email) {
+        // Enter with session immediately; load staff in background
+        setState({ session, staff: fallbackProfile(session.user.email), loading: false, error: null });
         const staff = await fetchStaffProfile(session.user.email);
-        setState({ session, staff, loading: false, error: null });
+        if (staff) setState((prev) => ({ ...prev, staff }));
       } else {
         setState({ session: null, staff: null, loading: false, error: null });
       }
@@ -69,37 +80,38 @@ export function useAuth() {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       if (session?.user?.email) {
-        const staffPromise = fetchStaffProfile(session.user.email);
-        const staffTimeout = new Promise<null>((resolve) => setTimeout(() => resolve(null), 5_000));
-        const staff = await Promise.race([staffPromise, staffTimeout]);
-        setState({ session, staff, loading: false, error: null });
+        setState((prev) => ({
+          ...prev,
+          session,
+          staff: prev.staff ?? fallbackProfile(session.user.email ?? ""),
+          loading: false,
+          error: null,
+        }));
+        const staff = await fetchStaffProfile(session.user.email);
+        if (staff) setState((prev) => ({ ...prev, staff }));
       } else {
         setState({ session: null, staff: null, loading: false, error: null });
       }
     });
 
     return () => subscription.unsubscribe();
-  }, [fetchStaffProfile]);
+  }, []);
 
   const signInWithPin = useCallback(async (email: string, pin: string): Promise<{ ok: boolean; error?: string }> => {
     setState((prev) => ({ ...prev, loading: true, error: null }));
 
-    const timeout = new Promise<{ ok: false; error: string }>((resolve) =>
-      setTimeout(() => resolve({ ok: false, error: "Tiempo de espera agotado" }), 10_000)
-    );
-
-    const attempt = supabase.auth.signInWithPassword({ email, password: pin }).then(({ error }) => {
-      if (error) return { ok: false as const, error: "PIN incorrecto" };
-      return { ok: true as const };
-    });
-
-    const result = await Promise.race([attempt, timeout]);
-
-    if (!result.ok) {
-      setState((prev) => ({ ...prev, loading: false, error: result.error }));
-      return result;
+    try {
+      const { error } = await supabase.auth.signInWithPassword({ email, password: pin });
+      if (error) {
+        setState((prev) => ({ ...prev, loading: false, error: "PIN incorrecto" }));
+        return { ok: false, error: "PIN incorrecto" };
+      }
+      // onAuthStateChange will handle setting session + staff
+      return { ok: true };
+    } catch {
+      setState((prev) => ({ ...prev, loading: false, error: "Error de conexión" }));
+      return { ok: false, error: "Error de conexión" };
     }
-    return { ok: true };
   }, []);
 
   const signOut = useCallback(async () => {
