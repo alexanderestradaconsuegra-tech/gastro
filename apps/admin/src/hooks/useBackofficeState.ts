@@ -80,14 +80,23 @@ export function useBackofficeState(): BackofficeState {
   useEffect(() => {
     if (!supabaseAvailable.current) return;
 
-    // Orders with their items joined
-    supabase.from("orders")
-      .select("*, order_items(*)")
-      .order("created_at", { ascending: false })
-      .limit(200)
-      .then(({ data, error }) => {
-        if (error) console.error("orders load error", error);
-        if (data) setOrders(data.map(mapDbOrderWithItems));
+    // Orders: two queries because order_items FK was dropped (PostgREST needs FK for nested selects)
+    supabase.from("orders").select("*").order("created_at", { ascending: false }).limit(200)
+      .then(async ({ data: ordersData, error }) => {
+        if (error) { console.error("orders load error", error); return; }
+        if (!ordersData?.length) return;
+        const ids = ordersData.map((o) => o.id as string);
+        const { data: itemsData } = await supabase.from("order_items").select("*").in("order_id", ids);
+        const itemsByOrder: Record<string, Record<string, unknown>[]> = {};
+        for (const item of (itemsData ?? []) as Record<string, unknown>[]) {
+          const oid = item.order_id as string;
+          if (!itemsByOrder[oid]) itemsByOrder[oid] = [];
+          itemsByOrder[oid].push(item);
+        }
+        setOrders(ordersData.map((o) => ({
+          ...mapDbOrder(o as Record<string, unknown>),
+          items: (itemsByOrder[o.id as string] ?? []).map(mapDbOrderItem),
+        })));
       });
 
     supabase.from("calls").select("*").order("created_at", { ascending: false }).limit(100)
@@ -123,18 +132,12 @@ export function useBackofficeState(): BackofficeState {
 
     const ordersChannel = supabase
       .channel("orders-realtime")
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "orders" }, async (payload) => {
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "orders" }, (payload) => {
         const r = payload.new as Record<string, unknown>;
-        // Fetch items for the newly inserted order
-        const { data: itemsData } = await supabase
-          .from("order_items")
-          .select("*")
-          .eq("order_id", r.id as string);
-        const order = mapDbOrder(r);
-        order.items = (itemsData ?? []).map(mapDbOrderItem);
+        // Items arrive separately via order_items subscription; start with []
         setOrders((prev) => {
-          if (prev.find((o) => o.id === order.id)) return prev;
-          return [order, ...prev];
+          if (prev.find((o) => o.id === r.id)) return prev;
+          return [mapDbOrder(r), ...prev];
         });
       })
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "orders" }, (payload) => {
@@ -150,6 +153,22 @@ export function useBackofficeState(): BackofficeState {
       .subscribe((status) => {
         if (status === "CHANNEL_ERROR") console.error("orders realtime error");
       });
+
+    // order_items arrive after the order — append them as they come in
+    const orderItemsChannel = supabase
+      .channel("order-items-realtime")
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "order_items" }, (payload) => {
+        const r = payload.new as Record<string, unknown>;
+        const item = mapDbOrderItem(r);
+        setOrders((prev) =>
+          prev.map((o) =>
+            o.id === (r.order_id as string)
+              ? { ...o, items: [...o.items, item] }
+              : o
+          )
+        );
+      })
+      .subscribe();
 
     const callsChannel = supabase
       .channel("calls-realtime")
@@ -210,6 +229,7 @@ export function useBackofficeState(): BackofficeState {
 
     return () => {
       supabase.removeChannel(ordersChannel);
+      supabase.removeChannel(orderItemsChannel);
       supabase.removeChannel(callsChannel);
       supabase.removeChannel(messagesChannel);
       supabase.removeChannel(tablesChannel);
@@ -499,13 +519,6 @@ function mapDbOrder(r: Record<string, unknown>): Order {
   };
 }
 
-function mapDbOrderWithItems(r: Record<string, unknown>): Order {
-  const rawItems = (r.order_items as Record<string, unknown>[]) ?? [];
-  return {
-    ...mapDbOrder(r),
-    items: rawItems.map(mapDbOrderItem),
-  };
-}
 
 function mapDbCall(r: Record<string, unknown>): Call {
   return {
