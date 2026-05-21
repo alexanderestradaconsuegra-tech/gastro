@@ -403,7 +403,6 @@ function TableDrawer({ table, role, state, onClose }: { table: TableRow; role: S
   const liveTable = (state.tables.find((t) => t.id === table.id) ?? table) as TableWithTip;
   const [showReceipt, setShowReceipt] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<"cash" | "card" | "transfer">("cash");
-  const [processing, setProcessing] = useState(false);
   const waiter = getStaffById(state.staff, liveTable.waiterId);
   const tableOrders = state.orders.filter((o) => o.tableId === liveTable.id);
   const tableMessages = state.messages.filter((m) => m.tableId === liveTable.id);
@@ -414,10 +413,8 @@ function TableDrawer({ table, role, state, onClose }: { table: TableRow; role: S
   const tipAmount = tipAccepted ? (liveTable.tipAmount || suggestedTip) : 0;
   const total = bill + tipAmount;
 
-  const handleCobrar = async () => {
-    setProcessing(true);
-    await state.closeTable(liveTable.id, paymentMethod, bill, tipAmount);
-    setProcessing(false);
+  const handleCobrar = () => {
+    state.closeTable(liveTable.id, paymentMethod, bill, tipAmount);
     setShowReceipt(false);
     onClose();
   };
@@ -489,8 +486,8 @@ function TableDrawer({ table, role, state, onClose }: { table: TableRow; role: S
               <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 14 }}>
                 <button className="btn ghost" onClick={() => setShowReceipt(false)}>Volver</button>
                 <button className="btn ghost" onClick={() => window.print()}>Imprimir</button>
-                <button className="btn primary" disabled={processing} onClick={handleCobrar}>
-                  {processing ? "Procesando..." : `Cobrar ${money(total)}`}
+                <button className="btn primary" onClick={handleCobrar}>
+                  {`Cobrar ${money(total)}`}
                 </button>
               </div>
             </div>

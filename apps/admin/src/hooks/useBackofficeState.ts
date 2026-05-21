@@ -35,7 +35,7 @@ export interface BackofficeState {
   demoMode: boolean;
   setDemoMode: (v: boolean) => void;
   updateOrderStatus: (orderId: string, status: OrderStatus) => void;
-  closeTable: (tableId: number, paymentMethod: "cash" | "card" | "transfer", amount: number, tipAmount: number) => Promise<void>;
+  closeTable: (tableId: number, paymentMethod: "cash" | "card" | "transfer", amount: number, tipAmount: number) => void;
   attendCall: (callId: string) => void;
   resolveCall: (callId: string) => void;
   resolveMessage: (msgId: number) => void;
@@ -402,7 +402,8 @@ export function useBackofficeState(): BackofficeState {
     supabase.from("tables").update({ tip_accepted: accepted, tip_amount: tipAmount }).eq("id", tableId);
   }, []);
 
-  const closeTable = useCallback(async (tableId: number, paymentMethod: "cash" | "card" | "transfer", amount: number, tipAmount: number) => {
+  const closeTable = useCallback((tableId: number, paymentMethod: "cash" | "card" | "transfer", amount: number, tipAmount: number) => {
+    // Optimistic UI — instant, never blocks
     setTables((prev) =>
       prev.map((t) =>
         t.id === tableId ? { ...t, status: "Libre" as Table["status"], bill: 0, guests: 0, waiterId: null } : t
@@ -420,16 +421,45 @@ export function useBackofficeState(): BackofficeState {
       [paymentMethod]: prev[paymentMethod] + amount,
       tips: prev.tips + tipAmount,
     }));
+
     if (!supabaseAvailable.current) return;
-    await supabase
+
+    // Fire-and-forget DB writes — UI already updated above
+    const colMap: Record<string, string> = { cash: "cash_total", card: "card_total", transfer: "transfer_total" };
+    const amountCol = colMap[paymentMethod];
+
+    supabase
       .from("orders")
       .update({ status: "served", updated_at: new Date().toISOString() })
       .eq("table_id", tableId)
-      .in("status", ["received", "prep", "plating"]);
-    await supabase
+      .in("status", ["received", "prep", "plating"])
+      .then(() => {});
+
+    supabase
       .from("tables")
       .update({ status: "Libre", bill_total: 0, guests: 0, waiter_id: null, tip_accepted: false, tip_amount: 0 })
-      .eq("id", tableId);
+      .eq("id", tableId)
+      .then(() => {});
+
+    // Record payment in the open cash session
+    supabase
+      .from("cash_sessions")
+      .select("id, cash_total, card_total, transfer_total, tips_total")
+      .eq("status", "open")
+      .order("opened_at", { ascending: false })
+      .limit(1)
+      .single()
+      .then(({ data: session }) => {
+        if (!session) return;
+        supabase
+          .from("cash_sessions")
+          .update({
+            [amountCol]: (session[amountCol as keyof typeof session] as number) + amount,
+            tips_total: (session.tips_total as number) + tipAmount,
+          })
+          .eq("id", session.id)
+          .then(() => {});
+      });
   }, []);
 
   const saveMenuItem = useCallback((item: MenuItem) => {
