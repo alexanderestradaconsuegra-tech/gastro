@@ -17,7 +17,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const body = $input.first().json.body ?? $input.first().json;\nconst required = ['restaurant_id', 'qr_token', 'items'];\nfor (const field of required) {\n  if (!body[field]) throw new Error(`Missing required field: ${field}`);\n}\nif (!Array.isArray(body.items) || body.items.length === 0) {\n  throw new Error('items must be a non-empty array');\n}\nfor (const item of body.items) {\n  if (!item.menu_item_id || !item.dish_name || !item.unit_price) {\n    throw new Error('Each item requires menu_item_id, dish_name and unit_price');\n  }\n  if (typeof item.qty !== 'number' || item.qty < 1) item.qty = 1;\n}\nconst digits = String(Math.floor(Math.random() * 10000)).padStart(4, '0');\nconst orderId = 'ORD-' + digits;\nconst sessionId = body.session_id || 'SES-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7);\nconst total = body.items.reduce((sum, item) => sum + (item.unit_price * (item.qty ?? 1)), 0);\nconst eta = body.eta_minutes ?? 18;\nreturn [{ json: { orderId, sessionId, restaurant_id: body.restaurant_id, qr_token: body.qr_token, table_id: body.table_id ?? null, waiter_id: body.waiter_id ?? null, notes: body.notes ?? null, channel: body.channel ?? 'QR Mesa', priority: body.priority ?? 'Normal', eta_minutes: eta, total, items: body.items } }];"
+        "jsCode": "// Acepta tanto snake_case como camelCase\nconst raw = $input.first().json.body ?? $input.first().json;\n\nconst restaurant_id = raw.restaurant_id || raw.restaurantId || 'nido';\nconst qr_token     = raw.qr_token     || raw.qrToken     || '';\nconst table_id     = raw.table_id     ?? raw.tableId     ?? null;\nconst session_id   = raw.session_id   || raw.sessionId   || null;\nconst notes        = raw.notes        || raw.note        || null;\nconst channel      = raw.channel      || 'QR Mesa';\nconst priority     = raw.priority     || 'Normal';\nconst eta_minutes  = raw.eta_minutes  || raw.eta         || 18;\n\nconst rawItems = raw.items || [];\nif (!Array.isArray(rawItems) || rawItems.length === 0) {\n  throw new Error('items must be a non-empty array');\n}\n\n// Normaliza items: acepta {menu_item_id,dish_name,unit_price} o {id,name,price}\nconst items = rawItems.map(i => ({\n  menu_item_id: i.menu_item_id || i.id || '',\n  dish_name:    i.dish_name    || i.name || '',\n  unit_price:   i.unit_price   || i.price || 0,\n  qty:          (typeof i.qty === 'number' && i.qty > 0) ? i.qty : 1\n}));\n\nconst digits   = String(Math.floor(Math.random() * 10000)).padStart(4, '0');\nconst orderId  = 'ORD-' + digits;\nconst finalSessionId = session_id || 'SES-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7);\nconst total = raw.total || items.reduce((s, i) => s + i.unit_price * i.qty, 0);\n\nreturn [{ json: { orderId, sessionId: finalSessionId, restaurant_id, qr_token, table_id, session_id, notes, channel, priority, eta_minutes, total, items } }];"
       },
       "id": "validate-order",
       "name": "Validate Order",
@@ -32,10 +32,10 @@
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            {"name": "apikey", "value": "={{$env.SUPABASE_SERVICE_KEY}}"},
-            {"name": "Authorization", "value": "=Bearer {{$env.SUPABASE_SERVICE_KEY}}"},
-            {"name": "Content-Type", "value": "application/json"},
-            {"name": "Prefer", "value": "resolution=merge-duplicates,return=representation"}
+            {"name": "apikey",        "value": "SUPABASE_SERVICE_KEY"},
+            {"name": "Authorization", "value": "Bearer SUPABASE_SERVICE_KEY"},
+            {"name": "Content-Type",  "value": "application/json"},
+            {"name": "Prefer",        "value": "resolution=merge-duplicates,return=representation"}
           ]
         },
         "sendBody": true,
@@ -56,15 +56,15 @@
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            {"name": "apikey", "value": "={{$env.SUPABASE_SERVICE_KEY}}"},
-            {"name": "Authorization", "value": "=Bearer {{$env.SUPABASE_SERVICE_KEY}}"},
-            {"name": "Content-Type", "value": "application/json"},
-            {"name": "Prefer", "value": "return=representation"}
+            {"name": "apikey",        "value": "SUPABASE_SERVICE_KEY"},
+            {"name": "Authorization", "value": "Bearer SUPABASE_SERVICE_KEY"},
+            {"name": "Content-Type",  "value": "application/json"},
+            {"name": "Prefer",        "value": "return=representation"}
           ]
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\"id\":\"{{$('Validate Order').item.json.orderId}}\",\"restaurant_id\":\"{{$('Validate Order').item.json.restaurant_id}}\",\"session_id\":\"{{$('Validate Order').item.json.sessionId}}\",\"table_id\":{{$('Validate Order').item.json.table_id !== null ? $('Validate Order').item.json.table_id : 'null'}},\"waiter_id\":{{$('Validate Order').item.json.waiter_id ? '\"'+$('Validate Order').item.json.waiter_id+'\"' : 'null'}},\"status\":\"received\",\"priority\":\"{{$('Validate Order').item.json.priority}}\",\"channel\":\"{{$('Validate Order').item.json.channel}}\",\"eta_minutes\":{{$('Validate Order').item.json.eta_minutes}},\"notes\":{{$('Validate Order').item.json.notes ? '\"'+$('Validate Order').item.json.notes+'\"' : 'null'}},\"total\":{{$('Validate Order').item.json.total}}}",
+        "jsonBody": "={\"id\":\"{{$('Validate Order').item.json.orderId}}\",\"restaurant_id\":\"{{$('Validate Order').item.json.restaurant_id}}\",\"session_id\":\"{{$('Validate Order').item.json.sessionId}}\",\"table_id\":{{$('Validate Order').item.json.table_id !== null ? $('Validate Order').item.json.table_id : 'null'}},\"status\":\"received\",\"priority\":\"{{$('Validate Order').item.json.priority}}\",\"channel\":\"{{$('Validate Order').item.json.channel}}\",\"eta_minutes\":{{$('Validate Order').item.json.eta_minutes}},\"notes\":{{$('Validate Order').item.json.notes ? '\"'+$('Validate Order').item.json.notes+'\"' : 'null'}},\"total\":{{$('Validate Order').item.json.total}}}",
         "options": {}
       },
       "id": "insert-order",
@@ -75,7 +75,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const data = $('Validate Order').item.json;\nconst orderId = data.orderId;\nconst orderItems = data.items.map(item => ({ order_id: orderId, menu_item_id: item.menu_item_id, dish_name: item.dish_name, qty: item.qty ?? 1, unit_price: item.unit_price, status: 'pending' }));\nreturn [{ json: { orderItems, orderId, restaurant_id: data.restaurant_id, table_id: data.table_id, qr_token: data.qr_token } }];"
+        "jsCode": "const data = $('Validate Order').item.json;\nconst orderItems = data.items.map(i => ({ order_id: data.orderId, menu_item_id: i.menu_item_id, dish_name: i.dish_name, qty: i.qty, unit_price: i.unit_price, status: 'pending' }));\nreturn [{ json: { orderItems, orderId: data.orderId, qr_token: data.qr_token } }];"
       },
       "id": "build-items",
       "name": "Build Order Items",
@@ -90,10 +90,10 @@
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            {"name": "apikey", "value": "={{$env.SUPABASE_SERVICE_KEY}}"},
-            {"name": "Authorization", "value": "=Bearer {{$env.SUPABASE_SERVICE_KEY}}"},
-            {"name": "Content-Type", "value": "application/json"},
-            {"name": "Prefer", "value": "return=representation"}
+            {"name": "apikey",        "value": "SUPABASE_SERVICE_KEY"},
+            {"name": "Authorization", "value": "Bearer SUPABASE_SERVICE_KEY"},
+            {"name": "Content-Type",  "value": "application/json"},
+            {"name": "Prefer",        "value": "return=representation"}
           ]
         },
         "sendBody": true,
@@ -114,10 +114,9 @@
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            {"name": "apikey", "value": "={{$env.SUPABASE_SERVICE_KEY}}"},
-            {"name": "Authorization", "value": "=Bearer {{$env.SUPABASE_SERVICE_KEY}}"},
-            {"name": "Content-Type", "value": "application/json"},
-            {"name": "Prefer", "value": "return=representation"}
+            {"name": "apikey",        "value": "SUPABASE_SERVICE_KEY"},
+            {"name": "Authorization", "value": "Bearer SUPABASE_SERVICE_KEY"},
+            {"name": "Content-Type",  "value": "application/json"}
           ]
         },
         "sendBody": true,
@@ -134,7 +133,7 @@
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={\"ok\":true,\"orderId\":\"{{$('Validate Order').item.json.orderId}}\",\"sessionId\":\"{{$('Validate Order').item.json.sessionId}}\"}",
+        "responseBody": "={\"ok\":true,\"orderId\":\"{{$('Validate Order').item.json.orderId}}\"}",
         "options": {"responseCode": 201}
       },
       "id": "respond-order",
@@ -159,7 +158,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const body = $input.first().json.body ?? $input.first().json;\nif (!body.restaurant_id || !body.qr_token) throw new Error('Missing restaurant_id or qr_token');\nconst callId = 'C-' + Math.random().toString(36).slice(2, 10).toUpperCase();\nconst callType = body.call_type || body.reason || 'Camarero';\nlet priority = 'Normal';\nif (callType.toLowerCase().includes('alergi')) priority = 'Crítica';\nelse if (callType.toLowerCase().includes('urgente') || callType.toLowerCase().includes('cobro') || callType.toLowerCase().includes('cuenta')) priority = 'Alta';\nlet tableStatus = 'Camarero ocupado';\nif (callType.toLowerCase().includes('cobro') || callType.toLowerCase().includes('cuenta')) tableStatus = 'Solicita cobro';\nreturn [{ json: { callId, restaurant_id: body.restaurant_id, qr_token: body.qr_token, table_id: body.table_id ?? null, session_id: body.session_id ?? null, waiter_id: body.waiter_id ?? null, call_type: callType, priority, message: body.message ?? callType, source: 'mesa', tableStatus } }];"
+        "jsCode": "const raw = $input.first().json.body ?? $input.first().json;\n\nconst restaurant_id = raw.restaurant_id || raw.restaurantId || 'nido';\nconst qr_token      = raw.qr_token      || raw.qrToken      || '';\nconst table_id      = raw.table_id      ?? raw.tableId      ?? null;\nconst session_id    = raw.session_id    || raw.sessionId    || null;\nconst callType      = raw.call_type     || raw.reason       || 'Camarero';\n\nconst callId = 'C-' + Math.random().toString(36).slice(2, 10).toUpperCase();\n\nlet priority = 'Normal';\nif (callType.toLowerCase().includes('alergi'))  priority = 'Crítica';\nelse if (callType.toLowerCase().includes('urgente') || callType.toLowerCase().includes('cobro') || callType.toLowerCase().includes('cuenta')) priority = 'Alta';\n\nlet tableStatus = 'Camarero ocupado';\nif (callType.toLowerCase().includes('cobro') || callType.toLowerCase().includes('cuenta')) tableStatus = 'Solicita cobro';\n\nreturn [{ json: { callId, restaurant_id, qr_token, table_id, session_id, call_type: callType, priority, message: callType, source: 'mesa', tableStatus } }];"
       },
       "id": "validate-camarero",
       "name": "Validate Camarero Call",
@@ -174,15 +173,15 @@
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            {"name": "apikey", "value": "={{$env.SUPABASE_SERVICE_KEY}}"},
-            {"name": "Authorization", "value": "=Bearer {{$env.SUPABASE_SERVICE_KEY}}"},
-            {"name": "Content-Type", "value": "application/json"},
-            {"name": "Prefer", "value": "return=representation"}
+            {"name": "apikey",        "value": "SUPABASE_SERVICE_KEY"},
+            {"name": "Authorization", "value": "Bearer SUPABASE_SERVICE_KEY"},
+            {"name": "Content-Type",  "value": "application/json"},
+            {"name": "Prefer",        "value": "return=representation"}
           ]
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\"id\":\"{{$json.callId}}\",\"restaurant_id\":\"{{$json.restaurant_id}}\",\"table_id\":{{$json.table_id !== null ? $json.table_id : 'null'}},\"session_id\":{{$json.session_id ? '\"'+$json.session_id+'\"' : 'null'}},\"waiter_id\":{{$json.waiter_id ? '\"'+$json.waiter_id+'\"' : 'null'}},\"source\":\"mesa\",\"call_type\":\"{{$json.call_type}}\",\"priority\":\"{{$json.priority}}\",\"status\":\"Pendiente\",\"message\":{{$json.message ? '\"'+$json.message+'\"' : 'null'}}}",
+        "jsonBody": "={\"id\":\"{{$json.callId}}\",\"restaurant_id\":\"{{$json.restaurant_id}}\",\"table_id\":{{$json.table_id !== null ? $json.table_id : 'null'}},\"session_id\":{{$json.session_id ? '\"'+$json.session_id+'\"' : 'null'}},\"source\":\"mesa\",\"call_type\":\"{{$json.call_type}}\",\"priority\":\"{{$json.priority}}\",\"status\":\"Pendiente\",\"message\":\"{{$json.message}}\"}",
         "options": {}
       },
       "id": "insert-call",
@@ -198,10 +197,9 @@
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            {"name": "apikey", "value": "={{$env.SUPABASE_SERVICE_KEY}}"},
-            {"name": "Authorization", "value": "=Bearer {{$env.SUPABASE_SERVICE_KEY}}"},
-            {"name": "Content-Type", "value": "application/json"},
-            {"name": "Prefer", "value": "return=representation"}
+            {"name": "apikey",        "value": "SUPABASE_SERVICE_KEY"},
+            {"name": "Authorization", "value": "Bearer SUPABASE_SERVICE_KEY"},
+            {"name": "Content-Type",  "value": "application/json"}
           ]
         },
         "sendBody": true,
@@ -243,7 +241,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const body = $input.first().json.body ?? $input.first().json;\nif (!body.restaurant_id || !body.qr_token) throw new Error('Missing restaurant_id or qr_token');\nconst callId = 'C-' + Math.random().toString(36).slice(2, 10).toUpperCase();\nreturn [{ json: { callId, restaurant_id: body.restaurant_id, qr_token: body.qr_token, table_id: body.table_id ?? null, session_id: body.session_id ?? null, waiter_id: body.waiter_id ?? null, message: 'Solicita la cuenta' } }];"
+        "jsCode": "const raw = $input.first().json.body ?? $input.first().json;\nconst restaurant_id = raw.restaurant_id || raw.restaurantId || 'nido';\nconst qr_token      = raw.qr_token      || raw.qrToken      || '';\nconst table_id      = raw.table_id      ?? raw.tableId      ?? null;\nconst session_id    = raw.session_id    || raw.sessionId    || null;\nconst callId = 'C-' + Math.random().toString(36).slice(2, 10).toUpperCase();\nreturn [{ json: { callId, restaurant_id, qr_token, table_id, session_id, message: 'Solicita la cuenta' } }];"
       },
       "id": "validate-bill",
       "name": "Validate Bill Request",
@@ -258,10 +256,10 @@
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            {"name": "apikey", "value": "={{$env.SUPABASE_SERVICE_KEY}}"},
-            {"name": "Authorization", "value": "=Bearer {{$env.SUPABASE_SERVICE_KEY}}"},
-            {"name": "Content-Type", "value": "application/json"},
-            {"name": "Prefer", "value": "return=representation"}
+            {"name": "apikey",        "value": "SUPABASE_SERVICE_KEY"},
+            {"name": "Authorization", "value": "Bearer SUPABASE_SERVICE_KEY"},
+            {"name": "Content-Type",  "value": "application/json"},
+            {"name": "Prefer",        "value": "return=representation"}
           ]
         },
         "sendBody": true,
@@ -282,10 +280,9 @@
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            {"name": "apikey", "value": "={{$env.SUPABASE_SERVICE_KEY}}"},
-            {"name": "Authorization", "value": "=Bearer {{$env.SUPABASE_SERVICE_KEY}}"},
-            {"name": "Content-Type", "value": "application/json"},
-            {"name": "Prefer", "value": "return=representation"}
+            {"name": "apikey",        "value": "SUPABASE_SERVICE_KEY"},
+            {"name": "Authorization", "value": "Bearer SUPABASE_SERVICE_KEY"},
+            {"name": "Content-Type",  "value": "application/json"}
           ]
         },
         "sendBody": true,
@@ -327,7 +324,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const body = $input.first().json.body ?? $input.first().json;\nif (!body.restaurant_id) throw new Error('Missing restaurant_id');\nconst rating = parseInt(body.rating, 10);\nif (isNaN(rating) || rating < 1 || rating > 5) throw new Error('rating must be 1-5');\nlet comment = null;\nif (body.comment && typeof body.comment === 'string') {\n  comment = body.comment.replace(/<[^>]*>/g, '').trim().slice(0, 1000);\n  if (comment.length === 0) comment = null;\n}\nconst allowedSources = ['table_qr','admin','whatsapp','email'];\nconst source = allowedSources.includes(body.source) ? body.source : 'table_qr';\nreturn [{ json: { restaurant_id: body.restaurant_id, session_id: body.session_id ?? null, table_id: body.table_id ?? null, waiter_id: body.waiter_id ?? null, rating, comment, source } }];"
+        "jsCode": "const raw = $input.first().json.body ?? $input.first().json;\nconst restaurant_id = raw.restaurant_id || raw.restaurantId || 'nido';\nconst table_id      = raw.table_id      ?? raw.tableId      ?? null;\nconst session_id    = raw.session_id    || raw.sessionId    || null;\nconst rating = parseInt(raw.rating, 10);\nif (isNaN(rating) || rating < 1 || rating > 5) throw new Error('rating must be 1-5');\nlet comment = null;\nif (raw.comment && typeof raw.comment === 'string') {\n  comment = raw.comment.replace(/<[^>]*>/g,'').trim().slice(0,1000) || null;\n}\nconst source = ['table_qr','admin','whatsapp','email'].includes(raw.source) ? raw.source : 'table_qr';\nreturn [{ json: { restaurant_id, session_id, table_id, rating, comment, source } }];"
       },
       "id": "validate-feedback",
       "name": "Validate Feedback",
@@ -342,15 +339,15 @@
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            {"name": "apikey", "value": "={{$env.SUPABASE_SERVICE_KEY}}"},
-            {"name": "Authorization", "value": "=Bearer {{$env.SUPABASE_SERVICE_KEY}}"},
-            {"name": "Content-Type", "value": "application/json"},
-            {"name": "Prefer", "value": "return=representation"}
+            {"name": "apikey",        "value": "SUPABASE_SERVICE_KEY"},
+            {"name": "Authorization", "value": "Bearer SUPABASE_SERVICE_KEY"},
+            {"name": "Content-Type",  "value": "application/json"},
+            {"name": "Prefer",        "value": "return=representation"}
           ]
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\"restaurant_id\":\"{{$json.restaurant_id}}\",\"session_id\":{{$json.session_id ? '\"'+$json.session_id+'\"' : 'null'}},\"table_id\":{{$json.table_id !== null ? $json.table_id : 'null'}},\"rating\":{{$json.rating}},\"comment\":{{$json.comment ? '\"'+$json.comment.replace(/\"/g,'\\\\\"')+'\"' : 'null'}},\"source\":\"{{$json.source}}\"}",
+        "jsonBody": "={\"restaurant_id\":\"{{$json.restaurant_id}}\",\"session_id\":{{$json.session_id ? '\"'+$json.session_id+'\"' : 'null'}},\"table_id\":{{$json.table_id !== null ? $json.table_id : 'null'}},\"rating\":{{$json.rating}},\"comment\":{{$json.comment ? '\"'+$json.comment+'\"' : 'null'}},\"source\":\"{{$json.source}}\"}",
         "options": {}
       },
       "id": "insert-review",
@@ -374,24 +371,24 @@
   ],
   "pinData": {},
   "connections": {
-    "Webhook - Order Create": {"main": [[{"node": "Validate Order", "type": "main", "index": 0}]]},
-    "Validate Order": {"main": [[{"node": "Insert Session", "type": "main", "index": 0}]]},
-    "Insert Session": {"main": [[{"node": "Insert Order", "type": "main", "index": 0}]]},
-    "Insert Order": {"main": [[{"node": "Build Order Items", "type": "main", "index": 0}]]},
-    "Build Order Items": {"main": [[{"node": "Insert Order Items", "type": "main", "index": 0}]]},
-    "Insert Order Items": {"main": [[{"node": "Update Table - Pedido nuevo", "type": "main", "index": 0}]]},
+    "Webhook - Order Create":  {"main": [[{"node": "Validate Order",         "type": "main", "index": 0}]]},
+    "Validate Order":          {"main": [[{"node": "Insert Session",          "type": "main", "index": 0}]]},
+    "Insert Session":          {"main": [[{"node": "Insert Order",            "type": "main", "index": 0}]]},
+    "Insert Order":            {"main": [[{"node": "Build Order Items",       "type": "main", "index": 0}]]},
+    "Build Order Items":       {"main": [[{"node": "Insert Order Items",      "type": "main", "index": 0}]]},
+    "Insert Order Items":      {"main": [[{"node": "Update Table - Pedido nuevo", "type": "main", "index": 0}]]},
     "Update Table - Pedido nuevo": {"main": [[{"node": "Respond - Order OK", "type": "main", "index": 0}]]},
     "Webhook - Camarero Call": {"main": [[{"node": "Validate Camarero Call", "type": "main", "index": 0}]]},
-    "Validate Camarero Call": {"main": [[{"node": "Insert Call", "type": "main", "index": 0}]]},
-    "Insert Call": {"main": [[{"node": "Update Table - Camarero", "type": "main", "index": 0}]]},
-    "Update Table - Camarero": {"main": [[{"node": "Respond - Camarero OK", "type": "main", "index": 0}]]},
-    "Webhook - Bill Request": {"main": [[{"node": "Validate Bill Request", "type": "main", "index": 0}]]},
-    "Validate Bill Request": {"main": [[{"node": "Insert Bill Call", "type": "main", "index": 0}]]},
-    "Insert Bill Call": {"main": [[{"node": "Update Table - Solicita Cobro", "type": "main", "index": 0}]]},
-    "Update Table - Solicita Cobro": {"main": [[{"node": "Respond - Bill OK", "type": "main", "index": 0}]]},
-    "Webhook - Feedback": {"main": [[{"node": "Validate Feedback", "type": "main", "index": 0}]]},
-    "Validate Feedback": {"main": [[{"node": "Insert Review", "type": "main", "index": 0}]]},
-    "Insert Review": {"main": [[{"node": "Respond - Feedback OK", "type": "main", "index": 0}]]}
+    "Validate Camarero Call":  {"main": [[{"node": "Insert Call",            "type": "main", "index": 0}]]},
+    "Insert Call":             {"main": [[{"node": "Update Table - Camarero","type": "main", "index": 0}]]},
+    "Update Table - Camarero": {"main": [[{"node": "Respond - Camarero OK",  "type": "main", "index": 0}]]},
+    "Webhook - Bill Request":  {"main": [[{"node": "Validate Bill Request",  "type": "main", "index": 0}]]},
+    "Validate Bill Request":   {"main": [[{"node": "Insert Bill Call",       "type": "main", "index": 0}]]},
+    "Insert Bill Call":        {"main": [[{"node": "Update Table - Solicita Cobro", "type": "main", "index": 0}]]},
+    "Update Table - Solicita Cobro": {"main": [[{"node": "Respond - Bill OK","type": "main", "index": 0}]]},
+    "Webhook - Feedback":      {"main": [[{"node": "Validate Feedback",      "type": "main", "index": 0}]]},
+    "Validate Feedback":       {"main": [[{"node": "Insert Review",          "type": "main", "index": 0}]]},
+    "Insert Review":           {"main": [[{"node": "Respond - Feedback OK",  "type": "main", "index": 0}]]}
   },
   "active": true,
   "settings": {"executionOrder": "v1"},
