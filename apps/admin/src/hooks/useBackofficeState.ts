@@ -211,7 +211,13 @@ export function useBackofficeState(): BackofficeState {
   const refreshRef = useRef<(() => void) | null>(null);
 
   const supabaseAvailable = useRef(
-    !!(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)
+    // Build-time baked vars OR runtime window injection from layout.tsx
+    !!(
+      (process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) ||
+      (typeof window !== "undefined" &&
+        (window as unknown as Record<string, string>).__SB_URL__ &&
+        (window as unknown as Record<string, string>).__SB_KEY__)
+    )
   );
 
   // ─── polling: orders + items ─────────────────────────────────────────────

@@ -1,11 +1,40 @@
-import { createClient } from "@supabase/supabase-js";
+import { createClient, SupabaseClient } from "@supabase/supabase-js";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
+function getSupabaseUrl(): string {
+  // Build-time baked (available when NEXT_PUBLIC_* were set as Docker build args)
+  if (process.env.NEXT_PUBLIC_SUPABASE_URL) return process.env.NEXT_PUBLIC_SUPABASE_URL;
+  // Runtime injection via layout.tsx <script> tag (works even without build-time args)
+  if (typeof window !== "undefined" && (window as unknown as Record<string, string>).__SB_URL__) {
+    return (window as unknown as Record<string, string>).__SB_URL__;
+  }
+  return "";
+}
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-  realtime: {
-    params: { eventsPerSecond: 10 },
+function getSupabaseKey(): string {
+  if (process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) return process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (typeof window !== "undefined" && (window as unknown as Record<string, string>).__SB_KEY__) {
+    return (window as unknown as Record<string, string>).__SB_KEY__;
+  }
+  return "";
+}
+
+// Lazy singleton — created on first use so window vars are available
+let _client: SupabaseClient | null = null;
+
+export function getSupabaseClient(): SupabaseClient {
+  if (_client) return _client;
+  const url = getSupabaseUrl();
+  const key = getSupabaseKey();
+  _client = createClient(url, key, {
+    realtime: { params: { eventsPerSecond: 10 } },
+  });
+  return _client;
+}
+
+// Convenience proxy — behaves like the old `supabase` export but lazy
+export const supabase = new Proxy({} as SupabaseClient, {
+  get(_target, prop) {
+    return (getSupabaseClient() as unknown as Record<string | symbol, unknown>)[prop];
   },
 });
 
