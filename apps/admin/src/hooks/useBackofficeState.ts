@@ -6,19 +6,12 @@ import {
   Call,
   CashSession,
   Expense,
-  INITIAL_CALLS,
   INITIAL_CASH_SESSION,
-  INITIAL_INVENTORY,
-  INITIAL_MENU_ITEMS,
-  INITIAL_MESSAGES,
-  INITIAL_ORDERS,
-  INITIAL_REVIEWS,
-  INITIAL_STAFF,
-  INITIAL_TABLES,
   InventoryItem,
   MenuItem,
   Message,
   Order,
+  OrderItem,
   OrderStatus,
   Review,
   StaffMember,
@@ -70,10 +63,10 @@ export function useBackofficeState(): BackofficeState {
   const [calls, setCalls] = useState<Call[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
   const [tables, setTables] = useState<Table[]>([]);
-  const [staff, setStaff] = useState<StaffMember[]>(INITIAL_STAFF);
+  const [staff, setStaff] = useState<StaffMember[]>([]);
   const [cashSession, setCashSession] = useState<CashSession>(INITIAL_CASH_SESSION);
-  const [inventory, setInventory] = useState<InventoryItem[]>(INITIAL_INVENTORY);
-  const [menuItems, setMenuItems] = useState<MenuItem[]>(INITIAL_MENU_ITEMS);
+  const [inventory, setInventory] = useState<InventoryItem[]>([]);
+  const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [reviews, setReviews] = useState<Review[]>([]);
   const [demoMode, setDemoMode] = useState(false);
@@ -87,8 +80,15 @@ export function useBackofficeState(): BackofficeState {
   useEffect(() => {
     if (!supabaseAvailable.current) return;
 
-    supabase.from("orders").select("*").order("created_at", { ascending: false }).limit(200)
-      .then(({ data }) => { if (data) setOrders(data.map(mapDbOrder)); });
+    // Orders with their items joined
+    supabase.from("orders")
+      .select("*, order_items(*)")
+      .order("created_at", { ascending: false })
+      .limit(200)
+      .then(({ data, error }) => {
+        if (error) console.error("orders load error", error);
+        if (data) setOrders(data.map(mapDbOrderWithItems));
+      });
 
     supabase.from("calls").select("*").order("created_at", { ascending: false }).limit(100)
       .then(({ data }) => { if (data) setCalls(data.map(mapDbCall)); });
@@ -97,7 +97,8 @@ export function useBackofficeState(): BackofficeState {
       .then(({ data }) => { if (data) setMessages(data.map(mapDbMessage)); });
 
     supabase.from("tables").select("*").order("id")
-      .then(({ data }) => {
+      .then(({ data, error }) => {
+        if (error) console.error("tables load error", error);
         if (data?.length) {
           setTables(data.map(mapDbTable));
           setQrTokens(data.map((r) => ({ tableId: r.id as number, token: r.qr_token as string, active: r.active as boolean })));
@@ -112,6 +113,9 @@ export function useBackofficeState(): BackofficeState {
 
     supabase.from("reviews").select("*").order("created_at", { ascending: false }).limit(50)
       .then(({ data }) => { if (data) setReviews(data.map(mapDbReview)); });
+
+    supabase.from("inventory").select("*").order("name")
+      .then(({ data }) => { if (data?.length) setInventory(data.map(mapDbInventory)); });
   }, []);
 
   useEffect(() => {
@@ -119,28 +123,43 @@ export function useBackofficeState(): BackofficeState {
 
     const ordersChannel = supabase
       .channel("orders-realtime")
-      .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, (payload) => {
-        if (payload.eventType === "INSERT") {
-          const r = payload.new as Record<string, unknown>;
-          setOrders((prev) => [mapDbOrder(r), ...prev]);
-        } else if (payload.eventType === "UPDATE") {
-          const r = payload.new as Record<string, unknown>;
-          setOrders((prev) =>
-            prev.map((o) => (o.id === r.id ? { ...o, status: r.status as OrderStatus } : o))
-          );
-        } else if (payload.eventType === "DELETE") {
-          const r = payload.old as Record<string, unknown>;
-          setOrders((prev) => prev.filter((o) => o.id !== r.id));
-        }
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "orders" }, async (payload) => {
+        const r = payload.new as Record<string, unknown>;
+        // Fetch items for the newly inserted order
+        const { data: itemsData } = await supabase
+          .from("order_items")
+          .select("*")
+          .eq("order_id", r.id as string);
+        const order = mapDbOrder(r);
+        order.items = (itemsData ?? []).map(mapDbOrderItem);
+        setOrders((prev) => {
+          if (prev.find((o) => o.id === order.id)) return prev;
+          return [order, ...prev];
+        });
       })
-      .subscribe();
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "orders" }, (payload) => {
+        const r = payload.new as Record<string, unknown>;
+        setOrders((prev) =>
+          prev.map((o) => (o.id === r.id ? { ...o, status: r.status as OrderStatus, total: (r.total as number) ?? o.total } : o))
+        );
+      })
+      .on("postgres_changes", { event: "DELETE", schema: "public", table: "orders" }, (payload) => {
+        const r = payload.old as Record<string, unknown>;
+        setOrders((prev) => prev.filter((o) => o.id !== r.id));
+      })
+      .subscribe((status) => {
+        if (status === "CHANNEL_ERROR") console.error("orders realtime error");
+      });
 
     const callsChannel = supabase
       .channel("calls-realtime")
       .on("postgres_changes", { event: "*", schema: "public", table: "calls" }, (payload) => {
         if (payload.eventType === "INSERT") {
           const r = payload.new as Record<string, unknown>;
-          setCalls((prev) => [mapDbCall(r), ...prev]);
+          setCalls((prev) => {
+            if (prev.find((c) => c.id === r.id)) return prev;
+            return [mapDbCall(r), ...prev];
+          });
         } else if (payload.eventType === "UPDATE") {
           const r = payload.new as Record<string, unknown>;
           setCalls((prev) =>
@@ -157,7 +176,10 @@ export function useBackofficeState(): BackofficeState {
       .on("postgres_changes", { event: "*", schema: "public", table: "messages" }, (payload) => {
         if (payload.eventType === "INSERT") {
           const r = payload.new as Record<string, unknown>;
-          setMessages((prev) => [...prev, mapDbMessage(r)]);
+          setMessages((prev) => {
+            if (prev.find((m) => m.id === r.id)) return prev;
+            return [...prev, mapDbMessage(r)];
+          });
         } else if (payload.eventType === "UPDATE") {
           const r = payload.new as Record<string, unknown>;
           setMessages((prev) =>
@@ -169,22 +191,20 @@ export function useBackofficeState(): BackofficeState {
 
     const tablesChannel = supabase
       .channel("tables-realtime")
-      .on("postgres_changes", { event: "*", schema: "public", table: "tables" }, (payload) => {
-        if (payload.eventType === "UPDATE") {
-          const r = payload.new as Record<string, unknown>;
-          setTables((prev) =>
-            prev.map((t) =>
-              t.id === r.id
-                ? {
-                    ...t,
-                    status: (r.status as Table["status"]) ?? t.status,
-                    guests: (r.guests as number) ?? t.guests,
-                    bill: (r.bill as number) ?? t.bill,
-                  }
-                : t
-            )
-          );
-        }
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "tables" }, (payload) => {
+        const r = payload.new as Record<string, unknown>;
+        setTables((prev) =>
+          prev.map((t) =>
+            t.id === r.id
+              ? {
+                  ...t,
+                  status: (r.status as Table["status"]) ?? t.status,
+                  guests: (r.guests as number) ?? t.guests,
+                  bill: (r.bill_total as number) ?? t.bill,
+                }
+              : t
+          )
+        );
       })
       .subscribe();
 
@@ -218,11 +238,7 @@ export function useBackofficeState(): BackofficeState {
 
   const resolveCall = useCallback((callId: string) => {
     setCalls((prev) =>
-      prev.map((c) =>
-        c.id === callId
-          ? { ...c, status: "Resuelto" }
-          : c
-      )
+      prev.map((c) => (c.id === callId ? { ...c, status: "Resuelto" } : c))
     );
     if (!supabaseAvailable.current) return;
     supabase
@@ -233,10 +249,10 @@ export function useBackofficeState(): BackofficeState {
 
   const resolveMessage = useCallback((msgId: number) => {
     setMessages((prev) =>
-      prev.map((m) => (m.id === msgId ? { ...m, status: "read" } : m))
+      prev.map((m) => (m.id === msgId ? { ...m, status: "resuelto" } : m))
     );
     if (!supabaseAvailable.current) return;
-    supabase.from("messages").update({ status: "read" }).eq("id", msgId);
+    supabase.from("messages").update({ status: "resuelto" }).eq("id", msgId);
   }, []);
 
   const assignWaiter = useCallback((tableId: number, waiterId: string) => {
@@ -259,7 +275,6 @@ export function useBackofficeState(): BackofficeState {
   }, []);
 
   const closeTable = useCallback(async (tableId: number, paymentMethod: "cash" | "card" | "transfer", amount: number, tipAmount: number) => {
-    // Optimistic update
     setTables((prev) => prev.map((t) =>
       t.id === tableId ? { ...t, status: "Libre" as Table["status"], bill: 0, guests: 0, waiterId: null, tipAccepted: false } : t
     ));
@@ -268,7 +283,6 @@ export function useBackofficeState(): BackofficeState {
         ? { ...o, status: "served" as OrderStatus }
         : o
     ));
-    // Update cash session totals locally
     setCashSession((prev) => ({
       ...prev,
       [paymentMethod]: prev[paymentMethod] + amount,
@@ -283,7 +297,7 @@ export function useBackofficeState(): BackofficeState {
       .in("status", ["received", "prep", "plating"]);
 
     await supabase.from("tables")
-      .update({ status: "Libre", bill: 0, guests: 0, waiter_id: null, tip_accepted: false, tip_amount: 0 })
+      .update({ status: "Libre", bill_total: 0, guests: 0, waiter_id: null, tip_accepted: false, tip_amount: 0 })
       .eq("id", tableId);
   }, []);
 
@@ -314,17 +328,19 @@ export function useBackofficeState(): BackofficeState {
   }, []);
 
   const toggleMenuAvailability = useCallback((itemId: string) => {
-    setMenuItems((prev) =>
-      prev.map((m) => (m.id === itemId ? { ...m, available: !m.available } : m))
-    );
-    if (!supabaseAvailable.current) return;
+    let nextAvailable = true;
     setMenuItems((prev) => {
-      const item = prev.find((m) => m.id === itemId);
-      if (item) {
-        supabase.from("menu_items").update({ available: item.available }).eq("id", itemId);
-      }
-      return prev;
+      const updated = prev.map((m) => {
+        if (m.id === itemId) {
+          nextAvailable = !m.available;
+          return { ...m, available: nextAvailable };
+        }
+        return m;
+      });
+      return updated;
     });
+    if (!supabaseAvailable.current) return;
+    supabase.from("menu_items").update({ available: nextAvailable }).eq("id", itemId);
   }, []);
 
   const deleteMenuItem = useCallback((itemId: string) => {
@@ -356,7 +372,7 @@ export function useBackofficeState(): BackofficeState {
     if (!supabaseAvailable.current) return;
     supabase
       .from("cash_sessions")
-      .update({ status: "cerrada", closed_at: new Date().toISOString() })
+      .update({ status: "closed", closed_at: new Date().toISOString() })
       .eq("id", cashSession.id);
   }, [cashSession.id]);
 
@@ -377,17 +393,19 @@ export function useBackofficeState(): BackofficeState {
   }, []);
 
   const updateInventoryStock = useCallback((itemId: string, qty: number) => {
-    setInventory((prev) =>
-      prev.map((i) => (i.id === itemId ? { ...i, stock: Math.max(0, i.stock + qty) } : i))
-    );
-    if (!supabaseAvailable.current) return;
+    let newStock = 0;
     setInventory((prev) => {
-      const item = prev.find((i) => i.id === itemId);
-      if (item) {
-        supabase.from("inventory").update({ stock: item.stock }).eq("id", itemId);
-      }
-      return prev;
+      const updated = prev.map((i) => {
+        if (i.id === itemId) {
+          newStock = Math.max(0, i.stock + qty);
+          return { ...i, stock: newStock };
+        }
+        return i;
+      });
+      return updated;
     });
+    if (!supabaseAvailable.current) return;
+    supabase.from("inventory").update({ stock: newStock }).eq("id", itemId);
   }, []);
 
   const toggleQr = useCallback((tableId: number) => {
@@ -451,6 +469,21 @@ export function useBackofficeState(): BackofficeState {
   };
 }
 
+function mapDbOrderItem(r: Record<string, unknown>): OrderItem {
+  const statusMap: Record<string, string> = {
+    pending: "Pendiente",
+    prep: "Preparando",
+    ready: "Listo",
+    served: "Servido",
+  };
+  return {
+    dish: (r.dish_name as string) ?? "",
+    qty: (r.qty as number) ?? 1,
+    status: statusMap[r.status as string] ?? (r.status as string) ?? "Pendiente",
+    price: (r.unit_price as number) ?? 0,
+  };
+}
+
 function mapDbOrder(r: Record<string, unknown>): Order {
   return {
     id: r.id as string,
@@ -463,6 +496,14 @@ function mapDbOrder(r: Record<string, unknown>): Order {
     items: [],
     notes: (r.notes as string) ?? "",
     total: (r.total as number) ?? 0,
+  };
+}
+
+function mapDbOrderWithItems(r: Record<string, unknown>): Order {
+  const rawItems = (r.order_items as Record<string, unknown>[]) ?? [];
+  return {
+    ...mapDbOrder(r),
+    items: rawItems.map(mapDbOrderItem),
   };
 }
 
@@ -485,9 +526,9 @@ function mapDbMessage(r: Record<string, unknown>): Message {
     id: r.id as number,
     tableId: r.table_id as number,
     sessionId: (r.session_id as string) ?? "",
-    fromRole: (r.from_role as string) ?? "client",
+    fromRole: (r.from_role as string) ?? "Cliente",
     text: (r.text as string) ?? "",
-    status: (r.status as string) ?? "unread",
+    status: (r.status as string) ?? "pendiente",
     createdAt: (r.created_at as string) ?? new Date().toISOString(),
   };
 }
@@ -499,7 +540,7 @@ function mapDbTable(r: Record<string, unknown>): Table {
     status: (r.status as Table["status"]) ?? "Libre",
     guests: (r.guests as number) ?? 0,
     waiterId: (r.waiter_id as string) ?? null,
-    bill: (r.bill as number) ?? 0,
+    bill: (r.bill_total as number) ?? 0,
     qrToken: (r.qr_token as string) ?? "",
   };
 }
@@ -532,7 +573,7 @@ function mapDbMenuItem(r: Record<string, unknown>): MenuItem {
     allergens: (r.allergens as string[]) ?? [],
     available: (r.available as boolean) ?? true,
     visibleClient: (r.visible_client as boolean) ?? true,
-    stockStatus: (r.stock_status as MenuItem["stockStatus"]) ?? "available",
+    stockStatus: (r.stock_status as MenuItem["stockStatus"]) ?? "ok",
     winePair: (r.wine_pair as string) ?? undefined,
     imageUrl: (r.image_url as string) ?? undefined,
   };
@@ -540,12 +581,24 @@ function mapDbMenuItem(r: Record<string, unknown>): MenuItem {
 
 function mapDbReview(r: Record<string, unknown>): Review {
   return {
-    id: r.id as string,
+    id: String(r.id),
     tableId: (r.table_id as number) ?? 0,
     waiterId: (r.waiter_id as string) ?? "",
     rating: r.rating as number,
     comment: (r.comment as string) ?? "",
     source: (r.source as string) ?? "table_qr",
     createdAt: (r.created_at as string) ?? new Date().toISOString(),
+  };
+}
+
+function mapDbInventory(r: Record<string, unknown>): InventoryItem {
+  return {
+    id: r.id as string,
+    name: (r.name as string) ?? "",
+    category: (r.category as string) ?? "",
+    stock: Number(r.stock ?? 0),
+    minStock: Number(r.min_stock ?? 0),
+    unit: (r.unit as string) ?? "kg",
+    linkedDishes: (r.linked_dishes as string[]) ?? [],
   };
 }
