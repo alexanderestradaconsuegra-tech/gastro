@@ -402,13 +402,25 @@ function TableReceipt({ table, waiterName }: { table: TableWithTip; waiterName: 
 function TableDrawer({ table, role, state, onClose }: { table: TableRow; role: StaffRole; state: BackofficeState; onClose: () => void }) {
   const liveTable = (state.tables.find((t) => t.id === table.id) ?? table) as TableWithTip;
   const [showReceipt, setShowReceipt] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState<"cash" | "card" | "transfer">("cash");
+  const [processing, setProcessing] = useState(false);
   const waiter = getStaffById(state.staff, liveTable.waiterId);
   const tableOrders = state.orders.filter((o) => o.tableId === liveTable.id);
   const tableMessages = state.messages.filter((m) => m.tableId === liveTable.id);
   const tipAccepted = liveTable.tipAccepted ?? false;
-  const tipAmount = liveTable.tipAmount ?? 0;
-  const suggestedTip = Math.round(liveTable.bill * 0.1);
-  const total = liveTable.bill + tipAmount;
+  // Bill calculated from real orders, fallback to table.bill
+  const bill = tableOrders.reduce((sum, o) => sum + (o.total ?? 0), 0) || liveTable.bill;
+  const suggestedTip = Math.round(bill * 0.1);
+  const tipAmount = tipAccepted ? (liveTable.tipAmount || suggestedTip) : 0;
+  const total = bill + tipAmount;
+
+  const handleCobrar = async () => {
+    setProcessing(true);
+    await state.closeTable(liveTable.id, paymentMethod, bill, tipAmount);
+    setProcessing(false);
+    setShowReceipt(false);
+    onClose();
+  };
   return (
     <aside className="drawer-lite">
       <div className="panel-head">
@@ -424,12 +436,12 @@ function TableDrawer({ table, role, state, onClose }: { table: TableRow; role: S
         <div className="tip-box">
           <b>Propina sugerida 10%</b>
           <p style={{ margin: "6px 0", color: "var(--muted)" }}>El cliente decide si desea agregarla.</p>
-          <div className="receipt-row" style={{ color: "var(--text)" }}><span>Subtotal mesa</span><b>{money(liveTable.bill)}</b></div>
+          <div className="receipt-row" style={{ color: "var(--text)" }}><span>Subtotal mesa</span><b>{money(bill)}</b></div>
           <div className="receipt-row" style={{ color: "var(--text)" }}><span>Propina 10%</span><b>{tipAccepted ? money(tipAmount) : `${money(suggestedTip)} sugerida`}</b></div>
           <div className="receipt-row receipt-total" style={{ color: "var(--text)" }}><span>Total cobro</span><b>{money(total)}</b></div>
           <div className="tip-actions">
-            <button className="btn primary" onClick={() => state.setTableTip(liveTable.id, true)}>Agregar 10%</button>
-            <button className="btn ghost" onClick={() => state.setTableTip(liveTable.id, false)}>Sin propina</button>
+            <button className="btn primary" onClick={() => state.setTableTip(liveTable.id, true, suggestedTip)}>Agregar 10%</button>
+            <button className="btn ghost" onClick={() => state.setTableTip(liveTable.id, false, suggestedTip)}>Sin propina</button>
           </div>
           <small style={{ display: "block", color: "var(--muted)", marginTop: 10 }}>Estado: {tipAccepted ? "propina aceptada" : "sin propina registrada"}</small>
         </div>
@@ -447,18 +459,39 @@ function TableDrawer({ table, role, state, onClose }: { table: TableRow; role: S
             <blockquote key={m.id} style={{ borderLeft: "3px solid var(--gold)", paddingLeft: 10, color: "#eadfd4" }}>{m.text}</blockquote>
           ))}
         </div>
-        {role === "admin" && <button className="btn primary" onClick={() => setShowReceipt(true)}>Generar boleta</button>}
+        {(role === "admin" || role === "caja") && bill > 0 && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 8 }}>
+            <div style={{ display: "flex", gap: 8 }}>
+              {(["cash", "card", "transfer"] as const).map((m) => (
+                <button
+                  key={m}
+                  className={`btn ${paymentMethod === m ? "primary" : "ghost"}`}
+                  style={{ flex: 1, fontSize: 12 }}
+                  onClick={() => setPaymentMethod(m)}
+                >
+                  {m === "cash" ? "Efectivo" : m === "card" ? "Tarjeta" : "Transferencia"}
+                </button>
+              ))}
+            </div>
+            <button className="btn primary" onClick={() => setShowReceipt(true)}>
+              Ver boleta · {money(total)}
+            </button>
+          </div>
+        )}
         {showReceipt && (
           <div className="modal-backdrop">
             <div className="modal">
               <div className="panel-head">
-                <div><h2>Boleta generada</h2><p style={{ margin: "4px 0 0" }}>Mesa {liveTable.id} · Total {money(total)}</p></div>
+                <div><h2>Confirmar cobro</h2><p style={{ margin: "4px 0 0" }}>Mesa {liveTable.id} · {paymentMethod === "cash" ? "Efectivo" : paymentMethod === "card" ? "Tarjeta" : "Transferencia"}</p></div>
                 <button className="btn ghost" onClick={() => setShowReceipt(false)}>Cerrar</button>
               </div>
-              <TableReceipt table={liveTable} waiterName={waiter?.name ?? "—"} />
+              <TableReceipt table={{ ...liveTable, bill }} waiterName={waiter?.name ?? "—"} />
               <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 14 }}>
                 <button className="btn ghost" onClick={() => setShowReceipt(false)}>Volver</button>
-                <button className="btn primary" onClick={() => window.print()}>Imprimir boleta</button>
+                <button className="btn ghost" onClick={() => window.print()}>Imprimir</button>
+                <button className="btn primary" disabled={processing} onClick={handleCobrar}>
+                  {processing ? "Procesando..." : `Cobrar ${money(total)}`}
+                </button>
               </div>
             </div>
           </div>

@@ -26,6 +26,7 @@ export interface Order {
   channel: string;
   items: OrderItem[];
   notes: string;
+  total?: number;
 }
 
 export interface Table {

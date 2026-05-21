@@ -42,11 +42,12 @@ export interface BackofficeState {
   demoMode: boolean;
   setDemoMode: (v: boolean) => void;
   updateOrderStatus: (orderId: string, status: OrderStatus) => void;
+  closeTable: (tableId: number, paymentMethod: "cash" | "card" | "transfer", amount: number, tipAmount: number) => Promise<void>;
   attendCall: (callId: string) => void;
   resolveCall: (callId: string) => void;
   resolveMessage: (msgId: number) => void;
   assignWaiter: (tableId: number, waiterId: string) => void;
-  setTableTip: (tableId: number, accepted: boolean) => void;
+  setTableTip: (tableId: number, accepted: boolean, suggestedAmount: number) => void;
   saveMenuItem: (item: MenuItem) => void;
   toggleMenuAvailability: (itemId: string) => void;
   deleteMenuItem: (itemId: string) => void;
@@ -246,14 +247,44 @@ export function useBackofficeState(): BackofficeState {
     supabase.from("tables").update({ waiter_id: waiterId }).eq("id", tableId);
   }, []);
 
-  const setTableTip = useCallback((tableId: number, accepted: boolean) => {
+  const setTableTip = useCallback((tableId: number, accepted: boolean, suggestedAmount: number) => {
+    const tipAmount = accepted ? suggestedAmount : 0;
     setTables((prev) =>
       prev.map((t) =>
-        t.id === tableId ? { ...t, tipAccepted: accepted } : t
+        t.id === tableId ? { ...t, tipAccepted: accepted, tipAmount } : t
       )
     );
     if (!supabaseAvailable.current) return;
-    supabase.from("tables").update({ tip_accepted: accepted }).eq("id", tableId);
+    supabase.from("tables").update({ tip_accepted: accepted, tip_amount: tipAmount }).eq("id", tableId);
+  }, []);
+
+  const closeTable = useCallback(async (tableId: number, paymentMethod: "cash" | "card" | "transfer", amount: number, tipAmount: number) => {
+    // Optimistic update
+    setTables((prev) => prev.map((t) =>
+      t.id === tableId ? { ...t, status: "Libre" as Table["status"], bill: 0, guests: 0, waiterId: null, tipAccepted: false } : t
+    ));
+    setOrders((prev) => prev.map((o) =>
+      o.tableId === tableId && ["received", "prep", "plating"].includes(o.status)
+        ? { ...o, status: "served" as OrderStatus }
+        : o
+    ));
+    // Update cash session totals locally
+    setCashSession((prev) => ({
+      ...prev,
+      [paymentMethod]: prev[paymentMethod] + amount,
+      tips: prev.tips + tipAmount,
+    }));
+
+    if (!supabaseAvailable.current) return;
+
+    await supabase.from("orders")
+      .update({ status: "served", updated_at: new Date().toISOString() })
+      .eq("table_id", tableId)
+      .in("status", ["received", "prep", "plating"]);
+
+    await supabase.from("tables")
+      .update({ status: "Libre", bill: 0, guests: 0, waiter_id: null, tip_accepted: false, tip_amount: 0 })
+      .eq("id", tableId);
   }, []);
 
   const saveMenuItem = useCallback((item: MenuItem) => {
@@ -400,6 +431,7 @@ export function useBackofficeState(): BackofficeState {
     demoMode,
     setDemoMode,
     updateOrderStatus,
+    closeTable,
     attendCall,
     resolveCall,
     resolveMessage,
@@ -430,6 +462,7 @@ function mapDbOrder(r: Record<string, unknown>): Order {
     channel: (r.channel as string) ?? "QR Mesa",
     items: [],
     notes: (r.notes as string) ?? "",
+    total: (r.total as number) ?? 0,
   };
 }
 
