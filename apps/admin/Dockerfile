@@ -5,8 +5,10 @@ WORKDIR /app
 # Install libc6-compat for alpine compatibility
 RUN apk add --no-cache libc6-compat
 
+ARG CACHEBUST=1
+
 COPY package*.json ./
-RUN npm ci --only=production
+RUN npm ci
 
 # ── Stage 2: Build ─────────────────────────────────────────────
 FROM node:20-alpine AS builder

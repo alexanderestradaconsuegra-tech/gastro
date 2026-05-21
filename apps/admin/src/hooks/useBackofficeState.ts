@@ -84,6 +84,35 @@ export function useBackofficeState(): BackofficeState {
     !!(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)
   );
 
+  // Load existing data from Supabase on mount
+  useEffect(() => {
+    if (!supabaseAvailable.current) return;
+
+    supabase.from("orders").select("*").order("created_at", { ascending: false }).limit(100)
+      .then(({ data }) => { if (data?.length) setOrders(data.map(mapDbOrder)); });
+
+    supabase.from("calls").select("*").order("created_at", { ascending: false }).limit(100)
+      .then(({ data }) => { if (data?.length) setCalls(data.map(mapDbCall)); });
+
+    supabase.from("tables").select("*").order("id")
+      .then(({ data }) => {
+        if (data?.length) {
+          setTables((prev) => prev.map((t) => {
+            const r = data.find((d) => d.id === t.id);
+            if (!r) return t;
+            return {
+              ...t,
+              status: (r.status as Table["status"]) ?? t.status,
+              guests: (r.guests as number) ?? t.guests,
+              bill: (r.bill as number) ?? t.bill,
+              waiterId: (r.waiter_id as string) ?? t.waiterId,
+              qrToken: (r.qr_token as string) ?? t.qrToken,
+            };
+          }));
+        }
+      });
+  }, []);
+
   useEffect(() => {
     if (!supabaseAvailable.current) return;
 
