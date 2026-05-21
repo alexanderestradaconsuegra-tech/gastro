@@ -268,7 +268,8 @@ export function useBackofficeState(): BackofficeState {
           items: (byOrder[o.id as string] ?? []).map(mapDbOrderItem),
         }));
 
-        console.log(`[gastro] fetched ${mappedOrders.length} orders, ${tablesRes.data?.length ?? 0} tables, ${callsRes.data?.length ?? 0} calls`);
+        const byStatus = mappedOrders.reduce((acc, o) => { acc[o.status] = (acc[o.status] ?? 0) + 1; return acc; }, {} as Record<string, number>);
+        console.log(`[gastro] fetched ${mappedOrders.length} orders (${JSON.stringify(byStatus)}), ${tablesRes.data?.length ?? 0} tables, ${callsRes.data?.length ?? 0} calls`);
 
         setOrders(mappedOrders);
 
@@ -302,7 +303,7 @@ export function useBackofficeState(): BackofficeState {
     refreshCallsRef.current = refreshAll;
 
     refreshAll();
-    const interval = setInterval(refreshAll, 5_000);
+    const interval = setInterval(refreshAll, 3_000);
     return () => {
       cancelled = true;
       clearInterval(interval);
