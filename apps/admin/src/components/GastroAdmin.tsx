@@ -197,15 +197,15 @@ function Layout({ role, tab, setTab, authStaff, onSignOut, children }: LayoutPro
     ["settings", "Configuración", icons.settings],
   ];
   const waiterTabs: [string, string, React.ReactNode][] = [
-    ["dashboard", "Mi turno", icons.dashboard],
     ["tables", "Mis mesas", icons.table],
-    ["orders", "Estado platos", icons.order],
-    ["kitchen", "Cocina", icons.kitchen],
+    ["orders", "Estado de cocina", icons.order],
     ["calls", "Llamados", icons.bell],
-    ["messages", "Mensajes cliente", icons.chat],
-    ["reviews", "Reseñas", icons.star],
+    ["messages", "Mensajes", icons.chat],
   ];
-  const tabs = role === "admin" ? adminTabs : waiterTabs;
+  const cocinaTabs: [string, string, React.ReactNode][] = [
+    ["kitchen", "Pantalla cocina", icons.kitchen],
+  ];
+  const tabs = role === "admin" ? adminTabs : role === "cocina" ? cocinaTabs : waiterTabs;
   return (
     <div className="app">
       <style>{CSS}</style>
@@ -217,7 +217,7 @@ function Layout({ role, tab, setTab, authStaff, onSignOut, children }: LayoutPro
             <div>
               <b>{authStaff?.name ?? "—"}</b>
               <small style={{ display: "block", color: "var(--muted)", marginTop: 3 }}>
-                {role === "admin" ? "Administrador" : "Camarero"}
+                {role === "admin" ? "Administrador" : role === "cocina" ? "Cocina" : "Camarero"}
               </small>
             </div>
           </div>
@@ -577,10 +577,14 @@ function OrderDetail({ order, state, role }: { order: OrderRow2; state: Backoffi
       </div>
       <p>{order.notes}</p>
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-        <button className="btn ghost" onClick={() => state.updateOrderStatus(order.id, "prep")}>Preparando</button>
-        <button className="btn ghost" onClick={() => state.updateOrderStatus(order.id, "plating")}>Listo</button>
-        <button className="btn primary" onClick={() => state.updateOrderStatus(order.id, "served")}>Servido</button>
-        {role === "admin" && <button className="btn danger">Escalar incidencia</button>}
+        {role === "admin" && (
+          <>
+            <button className="btn ghost" onClick={() => state.updateOrderStatus(order.id, "prep")}>Preparando</button>
+            <button className="btn ghost" onClick={() => state.updateOrderStatus(order.id, "plating")}>Listo</button>
+            <button className="btn danger">Escalar incidencia</button>
+          </>
+        )}
+        <button className="btn primary" onClick={() => state.updateOrderStatus(order.id, "served")}>Marcar servido</button>
       </div>
       <p style={{ color: "var(--muted)", fontSize: 12 }}>Estado actual: {displayStatus}</p>
     </div>
@@ -589,32 +593,59 @@ function OrderDetail({ order, state, role }: { order: OrderRow2; state: Backoffi
 
 // ─── Calls ───────────────────────────────────────────────────────────────────
 function CallsView({ role, staffId, state }: RoleStaffState) {
-  const visible = state.calls.filter((c) => role === "admin" || c.waiterId === staffId);
-  const mesa = visible.filter((c) => c.source === "mesa");
-  const cocina = visible.filter((c) => c.source === "cocina");
+  // Admin: all calls. Camarero: calls for their tables (client) + kitchen notifications for them
+  const myTableIds = state.tables
+    .filter((t) => t.waiterId === staffId)
+    .map((t) => t.id);
+
+  const visible = state.calls.filter((c) => {
+    if (role === "admin") return true;
+    // Client calls for their tables
+    if (c.source === "mesa" && myTableIds.includes(c.tableId)) return true;
+    // Kitchen notifications directed to them
+    if (c.source === "cocina" && (c.waiterId === staffId || myTableIds.includes(c.tableId))) return true;
+    return false;
+  });
+
+  const pending = visible.filter((c) => c.status !== "Resuelto");
+  const resolved = visible.filter((c) => c.status === "Resuelto");
   return (
-    <div className="two">
+    <div className="grid">
       <div className="panel">
-        <div className="panel-head"><h2>Llamados de mesa</h2><span className="badge">Cliente QR</span></div>
-        <div className="list">{mesa.map((c) => <CallRowItem key={c.id} call={c} state={state} />)}</div>
-      </div>
-      <div className="panel">
-        <div className="panel-head"><h2>Llamados de cocina</h2><span className="badge red">Cocina</span></div>
-        <div className="list">{cocina.map((c) => <CallRowItem key={c.id} call={c} state={state} />)}</div>
+        <div className="panel-head">
+          <h2>Llamados activos</h2>
+          <span className="badge red">{pending.length} pendientes</span>
+        </div>
+        <div className="list">
+          {pending.length === 0 && <p style={{ color: "var(--muted)" }}>Sin llamados pendientes.</p>}
+          {pending.map((c) => <CallRowItem key={c.id} call={c} state={state} />)}
+        </div>
+        {resolved.length > 0 && (
+          <>
+            <div className="panel-head" style={{ marginTop: 18 }}>
+              <h2 style={{ fontSize: 20, color: "var(--muted)" }}>Resueltos</h2>
+            </div>
+            <div className="list">{resolved.slice(0, 5).map((c) => <CallRowItem key={c.id} call={c} state={state} />)}</div>
+          </>
+        )}
       </div>
     </div>
   );
 }
 
 function CallRowItem({ call, state }: { call: CallRow2; state: BackofficeState }) {
+  const isKitchen = call.source === "cocina";
   return (
-    <div className="row">
+    <div className="row" style={isKitchen ? { borderColor: "rgba(247,211,123,.3)", background: "rgba(247,211,123,.06)" } : {}}>
       <span className={`badge ${statusBadge(call.priority)}`}>Mesa {call.tableId}</span>
       <div className="row-main">
-        <b>{call.type}</b>
+        <b>{isKitchen ? "🍽 Cocina: " : ""}{call.type}</b>
         <small>{call.message} · {call.status}</small>
       </div>
-      <button className="btn primary" onClick={() => state.attendCall(call.id)}>Atender</button>
+      <div style={{ display: "flex", gap: 6 }}>
+        {call.status === "Pendiente" && <button className="btn primary" onClick={() => state.attendCall(call.id)}>Atender</button>}
+        {call.status === "En atención" && <button className="btn ghost" onClick={() => state.resolveCall(call.id)}>Resuelto</button>}
+      </div>
     </div>
   );
 }
@@ -662,7 +693,15 @@ function MessageCard({ msg, state, compact = false }: { msg: MessageRow; state: 
 }
 
 // ─── Kitchen ─────────────────────────────────────────────────────────────────
-function KitchenView({ state }: { state: BackofficeState }) {
+function KitchenView({ state, role }: { state: BackofficeState; role: StaffRole }) {
+  // Cocina only sees active columns (not "served" — waiter marks that)
+  const COCINA_COLUMNS: Record<string, string> = {
+    received: "Recibido",
+    preparing: "Preparando",
+    ready: "Listo para servir",
+  };
+  const cols = role === "admin" ? KITCHEN_COLUMNS : COCINA_COLUMNS;
+
   const columns: Record<string, OrderRow2[]> = {
     received: state.orders.filter((o) => o.status === "received"),
     preparing: state.orders.filter((o) => o.status === "prep"),
@@ -672,13 +711,12 @@ function KitchenView({ state }: { state: BackofficeState }) {
   const nextStatus: Record<string, OrderStatus> = {
     received: "prep",
     preparing: "plating",
-    ready: "served",
   };
   const nextLabel: Record<string, string> = {
-    received: "Preparando",
-    preparing: "Listo para servir",
-    ready: "Servido",
+    received: "→ Preparando",
+    preparing: "→ Listo para servir",
   };
+
   return (
     <div className="grid">
       <div className="panel">
@@ -686,30 +724,58 @@ function KitchenView({ state }: { state: BackofficeState }) {
           <div><h2>Pantalla cocina</h2><p style={{ margin: "4px 0 0" }}>Flujo operativo en tiempo real.</p></div>
           <span className="badge red">LIVE</span>
         </div>
-        <div className="kitchen-board">
-          {Object.entries(KITCHEN_COLUMNS).map(([key, label]) => (
+        <div className="kitchen-board" style={{ gridTemplateColumns: `repeat(${Object.keys(cols).length}, minmax(0,1fr))` }}>
+          {Object.entries(cols).map(([key, label]) => (
             <div className="kitchen-col" key={key}>
               <div className="panel-head"><h2 style={{ fontSize: 22 }}>{label}</h2><span className="badge">{columns[key]?.length ?? 0}</span></div>
-              {(columns[key] ?? []).map((o) => (
-                <div className="kitchen-ticket" key={o.id}>
-                  <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
-                    <h4>{o.id}</h4>
-                    <span className={`badge ${statusBadge(o.priority)}`}>{o.priority}</span>
+              {(columns[key] ?? []).map((o) => {
+                const table = state.tables.find((t) => t.id === o.tableId);
+                const waiter = getStaffById(state.staff, table?.waiterId ?? null);
+                const dishNames = o.items.map((i) => `${i.qty}× ${i.dish}`).join(", ");
+                return (
+                  <div className="kitchen-ticket" key={o.id}>
+                    <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+                      <h4>{o.id}</h4>
+                      <span className={`badge ${statusBadge(o.priority)}`}>{o.priority}</span>
+                    </div>
+                    {/* Mesa + camarero asignado — siempre visible para coordinación */}
+                    <div style={{ display: "flex", gap: 8, alignItems: "center", margin: "6px 0" }}>
+                      <span className="badge blue">Mesa {o.tableId}</span>
+                      {waiter && (
+                        <span style={{ fontSize: 12, color: "var(--muted)" }}>{waiter.name}</span>
+                      )}
+                    </div>
+                    <div className="dish-lines">
+                      {o.items.map((i, idx) => (
+                        <div className="dish-line" key={idx}><span>{i.qty}× {i.dish}</span><b>{i.status}</b></div>
+                      ))}
+                    </div>
+                    {o.eta > 0 && <p style={{ marginTop: 8, color: "var(--muted)", fontSize: 12 }}>ETA {o.eta} min</p>}
+                    {/* Advance status (received→prep, prep→plating) */}
+                    {nextStatus[key] && (
+                      <button className="btn ghost" style={{ width: "100%", marginTop: 8 }} onClick={() => state.updateOrderStatus(o.id, nextStatus[key])}>
+                        {nextLabel[key]}
+                      </button>
+                    )}
+                    {/* Plato listo → notificar al camarero */}
+                    {key === "ready" && waiter && (
+                      <button
+                        className="btn primary"
+                        style={{ width: "100%", marginTop: 8 }}
+                        onClick={() => state.notifyWaiter(o.tableId, waiter.id, o.id, dishNames)}
+                      >
+                        Avisar a {waiter.name.split(" ")[0]}
+                      </button>
+                    )}
+                    {/* Admin only: mark served directly */}
+                    {key === "ready" && role === "admin" && (
+                      <button className="btn danger" style={{ width: "100%", marginTop: 6, fontSize: 12 }} onClick={() => state.updateOrderStatus(o.id, "served")}>
+                        Marcar servido
+                      </button>
+                    )}
                   </div>
-                  <p>Mesa {o.tableId}</p>
-                  <div className="dish-lines">
-                    {o.items.map((i, idx) => (
-                      <div className="dish-line" key={idx}><span>{i.qty}× {i.dish}</span><b>{i.status}</b></div>
-                    ))}
-                  </div>
-                  <p style={{ marginTop: 10 }}>ETA {o.eta} min</p>
-                  {nextStatus[key] && (
-                    <button className="btn primary" style={{ width: "100%", marginTop: 10 }} onClick={() => state.updateOrderStatus(o.id, nextStatus[key])}>
-                      {nextLabel[key]}
-                    </button>
-                  )}
-                </div>
-              ))}
+                );
+              })}
             </div>
           ))}
         </div>
@@ -1551,9 +1617,12 @@ function LukaChat({ authStaff, onClose }: { authStaff?: StaffProfile; onClose: (
 
 // ─── Main export ──────────────────────────────────────────────────────────────
 export default function GastroAdmin({ authStaff, onSignOut }: GastroAdminProps) {
-  const initialRole: StaffRole = authStaff?.role === "admin" ? "admin" : "camarero";
+  const initialRole: StaffRole =
+    authStaff?.role === "admin" ? "admin" :
+    authStaff?.role === "cocina" ? "cocina" :
+    "camarero";
   const [role] = useState<StaffRole>(initialRole);
-  const [tab, setTab] = useState<TabId>("dashboard");
+  const [tab, setTab] = useState<TabId>(role === "cocina" ? "kitchen" : "tables");
   const [lukaOpen, setLukaOpen] = useState(false);
   const state = useBackofficeState();
 
@@ -1563,15 +1632,18 @@ export default function GastroAdmin({ authStaff, onSignOut }: GastroAdminProps) 
     return match?.id ?? (role === "admin" ? "a1" : "w1");
   }, [authStaff, state.staff, role]);
 
-  const camareroOnly: string[] = ["sales", "staff", "inventory", "qr", "menu", "settings"];
+  // Restrict tabs by role
+  const adminOnly: string[] = ["sales", "staff", "inventory", "qr", "menu", "settings", "dashboard", "reviews"];
   const safeTab: TabId =
-    role === "camarero" && camareroOnly.includes(tab) ? "dashboard" : tab;
+    role === "cocina" ? "kitchen" :
+    role === "camarero" && adminOnly.includes(tab) ? "tables" :
+    tab;
 
   const content = useMemo(() => {
     switch (safeTab) {
       case "tables": return <TablesView role={role} staffId={staffId} state={state} />;
       case "orders": return <OrdersView role={role} staffId={staffId} state={state} />;
-      case "kitchen": return <KitchenView state={state} />;
+      case "kitchen": return <KitchenView state={state} role={role} />;
       case "calls": return <CallsView role={role} staffId={staffId} state={state} />;
       case "messages": return <MessagesView role={role} staffId={staffId} state={state} />;
       case "sales": return <><CashClosingView state={state} staffId={staffId} /><SalesView /></>;

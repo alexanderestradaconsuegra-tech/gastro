@@ -55,6 +55,7 @@ export interface BackofficeState {
   updateInventoryStock: (itemId: string, qty: number) => void;
   toggleQr: (tableId: number) => void;
   regenerateQr: (tableId: number) => void;
+  notifyWaiter: (tableId: number, waiterId: string, orderId: string, dishes: string) => void;
   saveStaffAvatar: (staffId: string, url: string) => void;
 }
 
@@ -632,6 +633,35 @@ export function useBackofficeState(): BackofficeState {
     sbPatch("staff", { id: staffId }, { avatar_url: url }).catch(() => {});
   }, []);
 
+  const notifyWaiter = useCallback((tableId: number, waiterId: string, orderId: string, dishes: string) => {
+    const id = `C-${Math.random().toString(16).slice(2, 10).toUpperCase()}`;
+    const call: Call = {
+      id,
+      source: "cocina",
+      tableId,
+      waiterId,
+      type: "Plato listo",
+      priority: "Alta",
+      status: "Pendiente",
+      message: `Listo para servir: ${dishes} (${orderId})`,
+      createdAt: Date.now(),
+    };
+    setCalls((prev) => [call, ...prev]);
+    if (!supabaseAvailable.current) return;
+    sbInsert("calls", {
+      id,
+      restaurant_id: "nido",
+      table_id: tableId,
+      session_id: `kitchen-${tableId}-${Date.now()}`,
+      waiter_id: waiterId,
+      source: "cocina",
+      call_type: "Plato listo",
+      priority: "Alta",
+      status: "Pendiente",
+      message: call.message,
+    }).catch(() => {});
+  }, []);
+
   const refreshNow = useCallback(() => {
     refreshOrdersRef.current?.();
     refreshTablesRef.current?.();
@@ -674,5 +704,6 @@ export function useBackofficeState(): BackofficeState {
     saveStaffAvatar,
     toggleQr,
     regenerateQr,
+    notifyWaiter,
   };
 }
