@@ -186,6 +186,50 @@ export async function sbRpc(
   }
 }
 
+// ── sbSignIn / sbSignOut: direct Auth REST calls ──────────────────────────────
+export async function sbSignIn(
+  email: string,
+  password: string
+): Promise<{ access_token: string; user: { email: string } } | { error: string }> {
+  const res = await fetch(`${HARDCODED_URL}/auth/v1/token?grant_type=password`, {
+    method: "POST",
+    headers: {
+      apikey: HARDCODED_ANON,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ email, password }),
+  });
+  if (!res.ok) {
+    return { error: "PIN incorrecto" };
+  }
+  const data = await res.json();
+  // Persist session in localStorage so getAuthToken() can read it
+  if (typeof window !== "undefined" && data.access_token) {
+    localStorage.setItem(
+      "sb-nlwrkumlrudfgsdnhfhw-auth-token",
+      JSON.stringify({ access_token: data.access_token, refresh_token: data.refresh_token })
+    );
+  }
+  return data as { access_token: string; user: { email: string } };
+}
+
+export async function sbSignOut(): Promise<void> {
+  const token = getAuthToken();
+  // Best-effort server-side logout (invalidate token)
+  fetch(`${HARDCODED_URL}/auth/v1/logout`, {
+    method: "POST",
+    headers: {
+      apikey: HARDCODED_ANON,
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+  }).catch(() => {});
+  // Always clear local session regardless of network result
+  if (typeof window !== "undefined") {
+    localStorage.removeItem("sb-nlwrkumlrudfgsdnhfhw-auth-token");
+  }
+}
+
 let _client: SupabaseClient | null = null;
 
 export function getSupabaseClient(): SupabaseClient {

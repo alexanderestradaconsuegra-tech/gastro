@@ -1,8 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import type { Session } from "@supabase/supabase-js";
-import { supabase } from "@/lib/supabase";
+import { sbSelect, sbSignIn, sbSignOut } from "@/lib/supabase";
 import type { StaffRole } from "@/lib/constants";
 
 export interface StaffProfile {
@@ -15,27 +14,40 @@ export interface StaffProfile {
 }
 
 export interface AuthState {
-  session: Session | null;
+  session: { email: string } | null;
   staff: StaffProfile | null;
   loading: boolean;
   error: string | null;
 }
 
-function fallbackProfile(email: string): StaffProfile {
-  return { id: "", name: email.split("@")[0], email, role: "admin", shift: "", phone: "" };
+const LS_KEY = "sb-nlwrkumlrudfgsdnhfhw-auth-token";
+
+function readStoredEmail(): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    // JWT payload has user email — decode without verify (client-side only)
+    const token =
+      (parsed.access_token as string | undefined) ??
+      ((parsed as Record<string, Record<string, string>>).session?.access_token);
+    if (!token) return null;
+    const payload = JSON.parse(atob(token.split(".")[1])) as Record<string, unknown>;
+    return (payload.email as string) ?? null;
+  } catch {
+    return null;
+  }
 }
 
 async function fetchStaffProfile(email: string): Promise<StaffProfile | null> {
   try {
-    const { data, error } = await supabase
-      .from("staff")
-      .select("id, name, email, role, shift, phone")
-      .eq("email", email)
-      .single();
-
-    if (error || !data) return null;
-
-    const row = data as Record<string, unknown>;
+    const rows = await sbSelect<Record<string, unknown>>(
+      "staff",
+      `select=id,name,email,role,shift,phone&email=eq.${encodeURIComponent(email)}&limit=1`
+    );
+    const row = rows[0];
+    if (!row) return null;
     return {
       id: row.id as string,
       name: row.name as string,
@@ -57,65 +69,40 @@ export function useAuth() {
     error: null,
   });
 
+  // On mount: check localStorage for an existing session
   useEffect(() => {
-    // Resolve initial session — show login if nothing after 4s
-    const timeout = setTimeout(() => {
+    const email = readStoredEmail();
+    if (!email) {
       setState({ session: null, staff: null, loading: false, error: null });
-    }, 4_000);
-
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      clearTimeout(timeout);
-      if (session?.user?.email) {
-        // Enter with session immediately; load staff in background
-        setState({ session, staff: fallbackProfile(session.user.email), loading: false, error: null });
-        const staff = await fetchStaffProfile(session.user.email);
-        if (staff) setState((prev) => ({ ...prev, staff }));
-      } else {
-        setState({ session: null, staff: null, loading: false, error: null });
-      }
-    }).catch(() => {
-      clearTimeout(timeout);
-      setState({ session: null, staff: null, loading: false, error: null });
+      return;
+    }
+    // Show app immediately with email; load full staff profile in background
+    const fallback: StaffProfile = { id: "", name: email.split("@")[0], email, role: "admin", shift: "", phone: "" };
+    setState({ session: { email }, staff: fallback, loading: false, error: null });
+    fetchStaffProfile(email).then((profile) => {
+      if (profile) setState((prev) => ({ ...prev, staff: profile }));
     });
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      if (session?.user?.email) {
-        setState((prev) => ({
-          ...prev,
-          session,
-          staff: prev.staff ?? fallbackProfile(session.user.email ?? ""),
-          loading: false,
-          error: null,
-        }));
-        const staff = await fetchStaffProfile(session.user.email);
-        if (staff) setState((prev) => ({ ...prev, staff }));
-      } else {
-        setState({ session: null, staff: null, loading: false, error: null });
-      }
-    });
-
-    return () => subscription.unsubscribe();
   }, []);
 
   const signInWithPin = useCallback(async (email: string, pin: string): Promise<{ ok: boolean; error?: string }> => {
     setState((prev) => ({ ...prev, loading: true, error: null }));
-
-    try {
-      const { error } = await supabase.auth.signInWithPassword({ email, password: pin });
-      if (error) {
-        setState((prev) => ({ ...prev, loading: false, error: "PIN incorrecto" }));
-        return { ok: false, error: "PIN incorrecto" };
-      }
-      // onAuthStateChange will handle setting session + staff
-      return { ok: true };
-    } catch {
-      setState((prev) => ({ ...prev, loading: false, error: "Error de conexión" }));
-      return { ok: false, error: "Error de conexión" };
+    const result = await sbSignIn(email, pin);
+    if ("error" in result) {
+      setState((prev) => ({ ...prev, loading: false, error: result.error }));
+      return { ok: false, error: result.error };
     }
+    // Load staff profile
+    const fallback: StaffProfile = { id: "", name: email.split("@")[0], email, role: "admin", shift: "", phone: "" };
+    setState({ session: { email }, staff: fallback, loading: false, error: null });
+    fetchStaffProfile(email).then((profile) => {
+      if (profile) setState((prev) => ({ ...prev, staff: profile }));
+    });
+    return { ok: true };
   }, []);
 
   const signOut = useCallback(async () => {
-    await supabase.auth.signOut();
+    await sbSignOut();
+    setState({ session: null, staff: null, loading: false, error: null });
   }, []);
 
   return { ...state, signInWithPin, signOut };
