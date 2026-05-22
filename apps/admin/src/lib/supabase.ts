@@ -72,6 +72,120 @@ export async function sbSelect<T = Record<string, unknown>>(
   return res.json() as Promise<T[]>;
 }
 
+// ── sbPatch: direct PATCH (UPDATE) ────────────────────────────────────────────
+export async function sbPatch(
+  table: string,
+  filters: Record<string, string | number | string[]>,
+  body: Record<string, unknown>
+): Promise<void> {
+  const token = getAuthToken();
+  const qs = Object.entries(filters)
+    .map(([k, v]) => Array.isArray(v) ? `${k}=in.(${v.join(",")})` : `${k}=eq.${encodeURIComponent(String(v))}`)
+    .join("&");
+  const res = await fetch(`${HARDCODED_URL}/rest/v1/${table}?${qs}`, {
+    method: "PATCH",
+    headers: {
+      apikey: HARDCODED_ANON,
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+      Prefer: "return=minimal",
+    },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => res.statusText);
+    throw new Error(`PATCH ${table} ${res.status}: ${text}`);
+  }
+}
+
+// ── sbInsert: direct POST (INSERT) ────────────────────────────────────────────
+export async function sbInsert(
+  table: string,
+  body: Record<string, unknown>
+): Promise<void> {
+  const token = getAuthToken();
+  const res = await fetch(`${HARDCODED_URL}/rest/v1/${table}`, {
+    method: "POST",
+    headers: {
+      apikey: HARDCODED_ANON,
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+      Prefer: "return=minimal",
+    },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok && res.status !== 204) {
+    const text = await res.text().catch(() => res.statusText);
+    throw new Error(`INSERT ${table} ${res.status}: ${text}`);
+  }
+}
+
+// ── sbUpsert: direct POST with merge-duplicates ───────────────────────────────
+export async function sbUpsert(
+  table: string,
+  body: Record<string, unknown>
+): Promise<void> {
+  const token = getAuthToken();
+  const res = await fetch(`${HARDCODED_URL}/rest/v1/${table}`, {
+    method: "POST",
+    headers: {
+      apikey: HARDCODED_ANON,
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+      Prefer: "resolution=merge-duplicates,return=minimal",
+    },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok && res.status !== 204) {
+    const text = await res.text().catch(() => res.statusText);
+    throw new Error(`UPSERT ${table} ${res.status}: ${text}`);
+  }
+}
+
+// ── sbDelete: direct DELETE ───────────────────────────────────────────────────
+export async function sbDelete(
+  table: string,
+  filters: Record<string, string | number>
+): Promise<void> {
+  const token = getAuthToken();
+  const qs = Object.entries(filters)
+    .map(([k, v]) => `${k}=eq.${encodeURIComponent(String(v))}`)
+    .join("&");
+  const res = await fetch(`${HARDCODED_URL}/rest/v1/${table}?${qs}`, {
+    method: "DELETE",
+    headers: {
+      apikey: HARDCODED_ANON,
+      Authorization: `Bearer ${token}`,
+      Prefer: "return=minimal",
+    },
+  });
+  if (!res.ok && res.status !== 204) {
+    const text = await res.text().catch(() => res.statusText);
+    throw new Error(`DELETE ${table} ${res.status}: ${text}`);
+  }
+}
+
+// ── sbRpc: direct POST to a Postgres function ────────────────────────────────
+export async function sbRpc(
+  fn: string,
+  params: Record<string, unknown>
+): Promise<void> {
+  const token = getAuthToken();
+  const res = await fetch(`${HARDCODED_URL}/rest/v1/rpc/${fn}`, {
+    method: "POST",
+    headers: {
+      apikey: HARDCODED_ANON,
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(params),
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => res.statusText);
+    throw new Error(`RPC ${fn} ${res.status}: ${text}`);
+  }
+}
+
 let _client: SupabaseClient | null = null;
 
 export function getSupabaseClient(): SupabaseClient {

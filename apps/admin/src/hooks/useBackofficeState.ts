@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { isSupabaseConfigured, sbSelect, supabase } from "@/lib/supabase";
+import { isSupabaseConfigured, sbDelete, sbInsert, sbPatch, sbRpc, sbSelect, sbUpsert, supabase } from "@/lib/supabase";
 import {
   Call,
   CashSession,
@@ -424,31 +424,31 @@ export function useBackofficeState(): BackofficeState {
   const updateOrderStatus = useCallback(async (orderId: string, status: OrderStatus) => {
     setOrders((prev) => prev.map((o) => (o.id === orderId ? { ...o, status } : o)));
     if (!supabaseAvailable.current) return;
-    await supabase.from("orders").update({ status, updated_at: new Date().toISOString() }).eq("id", orderId);
+    await sbPatch("orders", { id: orderId }, { status, updated_at: new Date().toISOString() });
   }, []);
 
   const attendCall = useCallback((callId: string) => {
     setCalls((prev) => prev.map((c) => (c.id === callId ? { ...c, status: "En atención" } : c)));
     if (!supabaseAvailable.current) return;
-    supabase.from("calls").update({ status: "En atención" }).eq("id", callId);
+    sbPatch("calls", { id: callId }, { status: "En atención" }).catch(() => {});
   }, []);
 
   const resolveCall = useCallback((callId: string) => {
     setCalls((prev) => prev.map((c) => (c.id === callId ? { ...c, status: "Resuelto" } : c)));
     if (!supabaseAvailable.current) return;
-    supabase.from("calls").update({ status: "Resuelto", resolved_at: new Date().toISOString() }).eq("id", callId);
+    sbPatch("calls", { id: callId }, { status: "Resuelto", resolved_at: new Date().toISOString() }).catch(() => {});
   }, []);
 
   const resolveMessage = useCallback((msgId: number) => {
     setMessages((prev) => prev.map((m) => (m.id === msgId ? { ...m, status: "resuelto" } : m)));
     if (!supabaseAvailable.current) return;
-    supabase.from("messages").update({ status: "resuelto" }).eq("id", msgId);
+    sbPatch("messages", { id: msgId }, { status: "resuelto" }).catch(() => {});
   }, []);
 
   const assignWaiter = useCallback((tableId: number, waiterId: string) => {
     setTables((prev) => prev.map((t) => (t.id === tableId ? { ...t, waiterId } : t)));
     if (!supabaseAvailable.current) return;
-    supabase.from("tables").update({ waiter_id: waiterId }).eq("id", tableId);
+    sbPatch("tables", { id: tableId }, { waiter_id: waiterId }).catch(() => {});
   }, []);
 
   const setTableTip = useCallback((tableId: number, accepted: boolean, suggestedAmount: number) => {
@@ -457,7 +457,7 @@ export function useBackofficeState(): BackofficeState {
       prev.map((t) => (t.id === tableId ? { ...t, tipAccepted: accepted, tipAmount } : t))
     );
     if (!supabaseAvailable.current) return;
-    supabase.from("tables").update({ tip_accepted: accepted, tip_amount: tipAmount }).eq("id", tableId);
+    sbPatch("tables", { id: tableId }, { tip_accepted: accepted, tip_amount: tipAmount }).catch(() => {});
   }, []);
 
   const closeTable = useCallback((tableId: number, paymentMethod: "cash" | "card" | "transfer", amount: number, tipAmount: number) => {
@@ -486,25 +486,23 @@ export function useBackofficeState(): BackofficeState {
     const colMap: Record<string, string> = { cash: "cash_total", card: "card_total", transfer: "transfer_total" };
     const amountCol = colMap[paymentMethod];
 
-    supabase
-      .from("orders")
-      .update({ status: "served", updated_at: new Date().toISOString() })
-      .eq("table_id", tableId)
-      .in("status", ["received", "prep", "plating"])
-      .then(() => {});
+    sbPatch(
+      "orders",
+      { table_id: tableId, status: ["received", "prep", "plating"] },
+      { status: "served", updated_at: new Date().toISOString() }
+    ).catch(() => {});
 
-    supabase
-      .from("tables")
-      .update({ status: "Libre", bill_total: 0, guests: 0, waiter_id: null, tip_accepted: false, tip_amount: 0 })
-      .eq("id", tableId)
-      .then(() => {});
+    sbPatch(
+      "tables",
+      { id: tableId },
+      { status: "Libre", bill_total: 0, guests: 0, waiter_id: null, tip_accepted: false, tip_amount: 0 }
+    ).catch(() => {});
 
-    // Atomically increment the open cash session totals via RPC to avoid lost-update races
-    supabase.rpc("increment_cash_session", {
+    sbRpc("increment_cash_session", {
       p_amount_col: amountCol,
       p_amount: amount,
       p_tips: tipAmount,
-    }).then(() => {});
+    }).catch(() => {});
   }, []);
 
   const saveMenuItem = useCallback((item: MenuItem) => {
@@ -513,8 +511,9 @@ export function useBackofficeState(): BackofficeState {
       return exists ? prev.map((m) => (m.id === item.id ? item : m)) : [...prev, item];
     });
     if (!supabaseAvailable.current) return;
-    supabase.from("menu_items").upsert({
+    sbUpsert("menu_items", {
       id: item.id,
+      restaurant_id: "nido",
       name: item.name,
       subtitle: item.subtitle,
       description: item.description,
@@ -529,7 +528,7 @@ export function useBackofficeState(): BackofficeState {
       stock_status: item.stockStatus,
       available: item.available,
       visible_client: item.visibleClient,
-    });
+    }).catch(() => {});
   }, []);
 
   const toggleMenuAvailability = useCallback((itemId: string) => {
@@ -544,13 +543,13 @@ export function useBackofficeState(): BackofficeState {
       })
     );
     if (!supabaseAvailable.current) return;
-    supabase.from("menu_items").update({ available: nextAvailable }).eq("id", itemId);
+    sbPatch("menu_items", { id: itemId }, { available: nextAvailable }).catch(() => {});
   }, []);
 
   const deleteMenuItem = useCallback((itemId: string) => {
     setMenuItems((prev) => prev.filter((m) => m.id !== itemId));
     if (!supabaseAvailable.current) return;
-    supabase.from("menu_items").delete().eq("id", itemId);
+    sbDelete("menu_items", { id: itemId }).catch(() => {});
   }, []);
 
   const openCash = useCallback((userId: string) => {
@@ -570,29 +569,23 @@ export function useBackofficeState(): BackofficeState {
       expenses: 0,
     });
     if (!supabaseAvailable.current) return;
-    supabase.from("cash_sessions").insert({
+    sbInsert("cash_sessions", {
       id,
       restaurant_id: "nido",
       opened_by: null,
       turn: "Noche",
       status: "open",
       opening_cash: 150000,
-    }).then(() => {});
+    }).catch(() => {});
   }, []);
 
   const closeCash = useCallback(() => {
     let sessionId = "";
     setCashSession((prev) => { sessionId = prev.id; return { ...prev, status: "cerrada" }; });
     if (!supabaseAvailable.current) return;
-    // Use functional update to capture current id synchronously above
-    setTimeout(() => {
-      if (sessionId) {
-        supabase.from("cash_sessions")
-          .update({ status: "closed", closed_at: new Date().toISOString() })
-          .eq("id", sessionId)
-          .then(() => {});
-      }
-    }, 0);
+    if (sessionId) {
+      sbPatch("cash_sessions", { id: sessionId }, { status: "closed", closed_at: new Date().toISOString() }).catch(() => {});
+    }
   }, []);
 
   const changeTurn = useCallback((turn: string) => {
@@ -616,7 +609,7 @@ export function useBackofficeState(): BackofficeState {
       })
     );
     if (!supabaseAvailable.current) return;
-    supabase.from("inventory").update({ stock: newStock }).eq("id", itemId);
+    sbPatch("inventory", { id: itemId }, { stock: newStock }).catch(() => {});
   }, []);
 
   const toggleQr = useCallback((tableId: number) => {
@@ -630,13 +623,13 @@ export function useBackofficeState(): BackofficeState {
     setQrTokens((prev) => prev.map((q) => (q.tableId === tableId ? { ...q, token, active: true } : q)));
     setTables((prev) => prev.map((t) => (t.id === tableId ? { ...t, qrToken: token } : t)));
     if (!supabaseAvailable.current) return;
-    supabase.from("tables").update({ qr_token: token }).eq("id", tableId);
+    sbPatch("tables", { id: tableId }, { qr_token: token }).catch(() => {});
   }, []);
 
   const saveStaffAvatar = useCallback((staffId: string, url: string) => {
     setStaff((prev) => prev.map((s) => (s.id === staffId ? { ...s, avatarUrl: url } : s)));
     if (!supabaseAvailable.current) return;
-    supabase.from("staff").update({ avatar_url: url }).eq("id", staffId);
+    sbPatch("staff", { id: staffId }, { avatar_url: url }).catch(() => {});
   }, []);
 
   const refreshNow = useCallback(() => {
