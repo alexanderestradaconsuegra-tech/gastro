@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useReducer, useCallback, useRef } from "react";
-import { supabase } from "@/lib/supabase";
+import { supabase, sbFetch } from "@/lib/supabase";
 import {
   MENU,
   QR_TABLES,
@@ -398,34 +398,43 @@ export function useTableSession(qrToken: string) {
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-function buildSessionId(restaurantId: string, qrToken: string, tableId: number): string {
-  const today = new Date().toISOString().slice(0, 10);
-  return `${restaurantId}-${qrToken}-table-${tableId}-${today}`;
+// Session ID is unique per table visit. Stored in localStorage so it survives
+// navigation within the same visit. Cleared (reset) when the table is "Libre"
+// so the next customer always gets a fresh session.
+function getOrCreateSessionId(restaurantId: string, tableId: number, tableStatus: string): string {
+  const key = `gastro-session-${restaurantId}-${tableId}`;
+  if (typeof window !== "undefined") {
+    const stored = localStorage.getItem(key);
+    // New session when table is free (previous guest left) or no stored session
+    if (!stored || tableStatus === "Libre") {
+      const id = `${restaurantId}-table-${tableId}-${Date.now()}`;
+      localStorage.setItem(key, id);
+      return id;
+    }
+    return stored;
+  }
+  return `${restaurantId}-table-${tableId}-${Date.now()}`;
 }
 
 async function resolveQrContext(qrToken: string): Promise<TableContext | null> {
-  // Try Supabase first
   try {
-    const { data, error } = await supabase
-      .from("tables")
-      .select("id, restaurant_id, label, zone, qr_token, active")
-      .eq("qr_token", qrToken)
-      .eq("active", true)
-      .single();
-
-    if (!error && data) {
-      const row = data as DbTable;
+    const rows = await sbFetch<DbTable>(
+      "tables",
+      `select=id,restaurant_id,label,zone,qr_token,active,status&qr_token=eq.${encodeURIComponent(qrToken)}&active=eq.true&limit=1`
+    );
+    const row = rows[0];
+    if (row) {
       return {
         qrToken,
         tableId: row.id,
         tableLabel: row.label,
         zone: row.zone,
-        sessionId: buildSessionId(row.restaurant_id, qrToken, row.id),
+        sessionId: getOrCreateSessionId(row.restaurant_id, row.id, row.status ?? "Libre"),
         restaurantId: row.restaurant_id,
       };
     }
   } catch {
-    // Supabase unavailable — fall through to static lookup
+    // fall through to static lookup
   }
 
   const fallback = QR_TABLES[qrToken];
@@ -435,24 +444,18 @@ async function resolveQrContext(qrToken: string): Promise<TableContext | null> {
     tableId: fallback.tableId,
     tableLabel: fallback.tableLabel,
     zone: fallback.zone,
-    sessionId: buildSessionId(RESTAURANT_ID, qrToken, fallback.tableId),
+    sessionId: getOrCreateSessionId(RESTAURANT_ID, fallback.tableId, "Libre"),
     restaurantId: RESTAURANT_ID,
   };
 }
 
 async function loadMenu(): Promise<MenuItem[]> {
   try {
-    const { data, error } = await supabase
-      .from("menu_items")
-      .select("*")
-      .eq("restaurant_id", RESTAURANT_ID)
-      .eq("available", true)
-      .eq("visible_client", true)
-      .order("category");
-
-    if (error || !data) return [];
-
-    return (data as DbMenuItem[]).map((row) => ({
+    const rows = await sbFetch<DbMenuItem>(
+      "menu_items",
+      `select=*&restaurant_id=eq.${RESTAURANT_ID}&available=eq.true&visible_client=eq.true&order=category`
+    );
+    return rows.map((row) => ({
       id: row.id,
       name: row.name,
       subtitle: row.subtitle ?? "",

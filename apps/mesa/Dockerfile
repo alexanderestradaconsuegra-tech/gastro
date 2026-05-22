@@ -2,7 +2,7 @@
 FROM node:20-alpine AS deps
 WORKDIR /app
 
-ARG CACHEBUST=1
+ARG CACHEBUST=2
 
 # Install libc6-compat for alpine compatibility
 RUN apk add --no-cache libc6-compat

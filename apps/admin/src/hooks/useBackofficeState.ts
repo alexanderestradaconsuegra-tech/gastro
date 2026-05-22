@@ -231,7 +231,7 @@ export function useBackofficeState(): BackofficeState {
       console.log("[gastro] refreshAll start");
       try {
         const [ordersData, tablesData, callsData] = await Promise.all([
-          sbSelect("orders", "select=*&order=created_at.desc&limit=200"),
+          sbSelect("orders", "select=*&status=not.in.(served,cancelled)&order=created_at.desc&limit=200"),
           sbSelect("tables", "select=*&order=id"),
           sbSelect("calls", "select=*&order=created_at.desc&limit=100"),
         ]);
