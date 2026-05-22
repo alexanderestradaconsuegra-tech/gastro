@@ -3,6 +3,7 @@ FROM node:20-alpine AS deps
 WORKDIR /app
 
 ARG CACHEBUST=2
+RUN echo "cachebust=$CACHEBUST"
 
 # Install libc6-compat for alpine compatibility
 RUN apk add --no-cache libc6-compat

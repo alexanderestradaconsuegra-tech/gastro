@@ -6,6 +6,7 @@ WORKDIR /app
 RUN apk add --no-cache libc6-compat
 
 ARG CACHEBUST=36
+RUN echo "cachebust=$CACHEBUST"
 
 COPY package*.json ./
 RUN npm ci
