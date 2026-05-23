@@ -124,6 +124,7 @@ const icons = {
   settings: <svg viewBox="0 0 24 24"><path d="M12 15.5A3.5 3.5 0 1 0 12 8a3.5 3.5 0 0 0 0 7.5Z" /><path d="M19.4 15a1.8 1.8 0 0 0 .4 2l.1.1-2 3.5-.2-.1a1.8 1.8 0 0 0-2.1.2 1.8 1.8 0 0 0-.6 1.9H9a1.8 1.8 0 0 0-.6-1.9 1.8 1.8 0 0 0-2.1-.2l-.2.1-2-3.5.1-.1a1.8 1.8 0 0 0 .4-2A1.8 1.8 0 0 0 3 13.5v-4A1.8 1.8 0 0 0 4.6 8a1.8 1.8 0 0 0-.4-2l-.1-.1 2-3.5.2.1a1.8 1.8 0 0 0 2.1-.2A1.8 1.8 0 0 0 9 .4h6a1.8 1.8 0 0 0 .6 1.9 1.8 1.8 0 0 0 2.1.2l.2-.1 2 3.5-.1.1a1.8 1.8 0 0 0-.4 2A1.8 1.8 0 0 0 21 9.5v4a1.8 1.8 0 0 0-1.6 1.5Z" /></svg>,
   signout: <svg viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" /></svg>,
   spark: <svg viewBox="0 0 24 24"><path d="M12 2l2.6 6.8L22 12l-7.4 3.2L12 22l-2.6-6.8L2 12l7.4-3.2Z" /></svg>,
+  comanda: <svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7M18.5 2.5a2.1 2.1 0 0 1 3 3L12 15l-4 1 1-4Z" /></svg>,
 };
 
 const CSS = `
@@ -198,7 +199,8 @@ function Layout({ role, tab, setTab, authStaff, onSignOut, children }: LayoutPro
   ];
   const waiterTabs: [string, string, React.ReactNode][] = [
     ["tables", "Mis mesas", icons.table],
-    ["orders", "Estado de cocina", icons.order],
+    ["comanda", "Comanda", icons.comanda],
+    ["orders", "Estado cocina", icons.order],
     ["calls", "Llamados", icons.bell],
     ["messages", "Mensajes", icons.chat],
   ];
@@ -340,6 +342,124 @@ function Dashboard({ role, staffId, state }: RoleStaffState) {
       <div className="panel">
         <div className="panel-head"><h2>Estado de platos</h2><span className="badge blue">Cocina</span></div>
         <div className="list">{staffOrders.map((o) => <OrderRowItem key={o.id} order={o} state={state} />)}</div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Comanda (waiter order-taking) ───────────────────────────────────────────
+function ComandaView({ role, staffId, state }: RoleStaffState) {
+  const isAdmin = role === "admin";
+  const myTables = state.tables.filter(
+    (t) => t.status !== "Libre" && (isAdmin || t.waiterId === staffId || !t.waiterId)
+  );
+  const [tableId, setTableId] = useState<number | null>(myTables[0]?.id ?? null);
+  const [qty, setQty] = useState<Record<string, number>>({});
+  const [notes, setNotes] = useState("");
+  const [category, setCategory] = useState("Todo");
+  const [sending, setSending] = useState(false);
+  const [sent, setSent] = useState(false);
+
+  const categories = ["Todo", ...Array.from(new Set(state.menuItems.map((m) => m.category)))];
+  const visible = (category === "Todo" ? state.menuItems : state.menuItems.filter((m) => m.category === category))
+    .filter((m) => m.available);
+  const cartItems = state.menuItems.filter((m) => (qty[m.id] ?? 0) > 0);
+  const total = cartItems.reduce((s, m) => s + m.price * (qty[m.id] ?? 0), 0);
+  const cartCount = cartItems.reduce((s, m) => s + (qty[m.id] ?? 0), 0);
+
+  async function submit() {
+    if (!tableId || cartItems.length === 0) return;
+    setSending(true);
+    await state.submitWaiterOrder(
+      tableId, staffId,
+      cartItems.map((m) => ({ menuItemId: m.id, dishName: m.name, qty: qty[m.id] ?? 1, unitPrice: m.price })),
+      notes
+    );
+    setSending(false);
+    setSent(true);
+    setQty({});
+    setNotes("");
+    setTimeout(() => setSent(false), 2000);
+  }
+
+  const adjust = (id: string, delta: number) =>
+    setQty((prev) => { const n = Math.max(0, (prev[id] ?? 0) + delta); return n === 0 ? Object.fromEntries(Object.entries(prev).filter(([k]) => k !== id)) : { ...prev, [id]: n }; });
+
+  return (
+    <div className="grid">
+      <div className="panel">
+        <div className="panel-head">
+          <h2>Comanda</h2>
+          {cartCount > 0 && <span className="badge red">{cartCount} item{cartCount > 1 ? "s" : ""} · {money(total)}</span>}
+        </div>
+
+        {/* Table selector */}
+        <div className="field" style={{ marginBottom: 14 }}>
+          <label>Mesa</label>
+          <select className="input" value={tableId ?? ""} onChange={(e) => setTableId(Number(e.target.value) || null)}>
+            <option value="">Seleccionar mesa…</option>
+            {myTables.map((t) => {
+              const w = getStaffById(state.staff, t.waiterId);
+              return <option key={t.id} value={t.id}>Mesa {t.id} — {t.status}{w ? ` · ${w.name}` : " · Sin asignar"}</option>;
+            })}
+          </select>
+        </div>
+
+        {/* Category filter */}
+        <div className="tab" style={{ marginBottom: 16 }}>
+          {categories.map((c) => (
+            <button key={c} className={category === c ? "on" : ""} style={{ whiteSpace: "nowrap", border: "1px solid var(--line)", background: category === c ? "linear-gradient(135deg,var(--gold),var(--gold2))" : "rgba(255,255,255,.045)", color: category === c ? "#171006" : "var(--muted)", borderRadius: 999, padding: "8px 14px", fontWeight: 900, fontSize: 12 }} onClick={() => setCategory(c)}>
+              {c}
+            </button>
+          ))}
+        </div>
+
+        {/* Dish grid */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(220px,1fr))", gap: 12, marginBottom: 16 }}>
+          {visible.map((m) => {
+            const q = qty[m.id] ?? 0;
+            return (
+              <div key={m.id} className="panel" style={{ padding: 0, overflow: "hidden", display: "flex", flexDirection: "column" }}>
+                {m.imageUrl && (
+                  <div style={{ height: 120, backgroundImage: `url(${m.imageUrl})`, backgroundSize: "cover", backgroundPosition: "center" }} />
+                )}
+                <div style={{ padding: "12px 14px", flex: 1, display: "flex", flexDirection: "column", gap: 6 }}>
+                  <div style={{ fontWeight: 800, fontSize: 14 }}>{m.name}</div>
+                  <div style={{ color: "var(--muted)", fontSize: 12, flex: 1 }}>{m.subtitle}</div>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 4 }}>
+                    <span style={{ color: "var(--gold2)", fontWeight: 900 }}>{money(m.price)}</span>
+                    {q === 0 ? (
+                      <button className="btn primary" style={{ padding: "8px 14px", fontSize: 12 }} onClick={() => adjust(m.id, 1)}>+ Agregar</button>
+                    ) : (
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <button className="btn ghost" style={{ padding: "6px 10px", fontSize: 13, fontWeight: 900 }} onClick={() => adjust(m.id, -1)}>−</button>
+                        <span style={{ fontWeight: 900, color: "var(--gold2)", minWidth: 20, textAlign: "center" }}>{q}</span>
+                        <button className="btn primary" style={{ padding: "6px 10px", fontSize: 13, fontWeight: 900 }} onClick={() => adjust(m.id, 1)}>+</button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Cart summary + submit */}
+        {cartCount > 0 && (
+          <div className="tip-box">
+            <b>Pedido a enviar</b>
+            {cartItems.map((m) => (
+              <div key={m.id} className="receipt-row" style={{ color: "var(--text)", marginTop: 6 }}>
+                <span>{qty[m.id]}× {m.name}</span><b>{money(m.price * (qty[m.id] ?? 0))}</b>
+              </div>
+            ))}
+            <div className="receipt-row receipt-total" style={{ color: "var(--text)" }}><span>Total</span><b>{money(total)}</b></div>
+            <textarea className="textarea" style={{ marginTop: 10, minHeight: 52 }} placeholder="Notas (alergias, puntos…)" value={notes} onChange={(e) => setNotes(e.target.value)} />
+            <button className="btn primary" style={{ width: "100%", marginTop: 10 }} disabled={!tableId || sending} onClick={() => void submit()}>
+              {sent ? "✓ Enviado a cocina" : sending ? "Enviando…" : `Enviar a cocina · ${money(total)}`}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -536,18 +656,17 @@ function WaiterOrderPanel({ tableId, staffId, state, onClose }: {
 }
 
 function TableDrawer({ table, role, staffId, state, onClose }: { table: TableRow; role: StaffRole; staffId: string; state: BackofficeState; onClose: () => void }) {
-  const liveTable = (state.tables.find((t) => t.id === table.id) ?? table) as TableWithTip;
+  const liveTable = state.tables.find((t) => t.id === table.id) ?? table;
   const [showReceipt, setShowReceipt] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<"cash" | "card" | "transfer">("cash");
-  const [takingOrder, setTakingOrder] = useState(false);
+  // Tip is local state — avoids race with realtime overwrites
+  const [tipAccepted, setTipAccepted] = useState(false);
   const waiter = getStaffById(state.staff, liveTable.waiterId);
   const tableOrders = state.orders.filter((o) => o.tableId === liveTable.id);
   const tableMessages = state.messages.filter((m) => m.tableId === liveTable.id);
-  const tipAccepted = liveTable.tipAccepted ?? false;
-  // Bill calculated from real orders, fallback to table.bill
   const bill = tableOrders.reduce((sum, o) => sum + (o.total ?? 0), 0) || liveTable.bill;
   const suggestedTip = Math.round(bill * 0.1);
-  const tipAmount = tipAccepted ? (liveTable.tipAmount || suggestedTip) : 0;
+  const tipAmount = tipAccepted ? suggestedTip : 0;
   const total = bill + tipAmount;
 
   const handleCobrar = () => {
@@ -555,90 +674,111 @@ function TableDrawer({ table, role, staffId, state, onClose }: { table: TableRow
     setShowReceipt(false);
     onClose();
   };
+  const canBill = role === "admin" || role === "caja" || role === "camarero";
   return (
     <aside className="drawer-lite">
       <div className="panel-head">
-        <div><h2>Ficha Mesa {liveTable.id}</h2><p style={{ margin: "4px 0 0" }}>Token QR {liveTable.qrToken} · {liveTable.zone}</p></div>
+        <div>
+          <h2>Mesa {liveTable.id}</h2>
+          <p style={{ margin: "4px 0 0" }}>
+            {liveTable.zone} · {liveTable.guests} pax ·{" "}
+            <span className={`badge ${statusBadge(liveTable.status)}`} style={{ fontSize: 11, padding: "4px 8px" }}>{liveTable.status}</span>
+          </p>
+        </div>
         <button className="btn ghost" onClick={onClose}>Cerrar</button>
       </div>
-      <div className="list">
-        <div className="row">
-          <span className={`badge ${statusBadge(liveTable.status)}`}>{liveTable.status}</span>
-          <div className="row-main"><b>{liveTable.guests} clientes</b><small>Camarero: {waiter?.name ?? "Sin asignar"}</small></div>
-          <strong>{money(liveTable.bill)}</strong>
+
+      {/* Camarero assigned */}
+      <div className="row" style={{ marginBottom: 4 }}>
+        <StaffAvatar staff={waiter ? { name: waiter.name, email: waiter.email } : null} />
+        <div className="row-main">
+          <b>{waiter?.name ?? "Sin camarero"}</b>
+          <small>{waiter?.role ?? "—"}</small>
         </div>
-        <div className="tip-box">
-          <b>Propina sugerida 10%</b>
-          <p style={{ margin: "6px 0", color: "var(--muted)" }}>El cliente decide si desea agregarla.</p>
-          <div className="receipt-row" style={{ color: "var(--text)" }}><span>Subtotal mesa</span><b>{money(bill)}</b></div>
-          <div className="receipt-row" style={{ color: "var(--text)" }}><span>Propina 10%</span><b>{tipAccepted ? money(tipAmount) : `${money(suggestedTip)} sugerida`}</b></div>
-          <div className="receipt-row receipt-total" style={{ color: "var(--text)" }}><span>Total cobro</span><b>{money(total)}</b></div>
-          <div className="tip-actions">
-            <button className="btn primary" onClick={() => state.setTableTip(liveTable.id, true, suggestedTip)}>Agregar 10%</button>
-            <button className="btn ghost" onClick={() => state.setTableTip(liveTable.id, false, suggestedTip)}>Sin propina</button>
+        {bill > 0 && <strong style={{ color: "var(--gold2)" }}>{money(bill)}</strong>}
+      </div>
+
+      {/* Orders — clear dish list */}
+      <div className="panel" style={{ boxShadow: "none", marginBottom: 4 }}>
+        <div className="panel-head">
+          <h2>Platos pedidos</h2>
+          <span className="badge">{tableOrders.length} pedido(s)</span>
+        </div>
+        {tableOrders.length === 0 && <p style={{ color: "var(--muted)", margin: 0 }}>Sin pedidos aún.</p>}
+        {tableOrders.map((o) => (
+          <div key={o.id} style={{ borderRadius: 14, background: "rgba(255,255,255,.04)", border: "1px solid var(--line)", padding: "10px 12px", marginBottom: 8 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+              <span style={{ fontSize: 12, color: "var(--muted)" }}>{o.id} · {o.channel ?? "QR"}</span>
+              <span className={`badge ${statusBadge(o.status)}`} style={{ fontSize: 10, padding: "3px 8px" }}>{STATUS_DISPLAY[o.status] ?? o.status}</span>
+            </div>
+            {o.items.map((item, idx) => (
+              <div key={idx} style={{ display: "flex", justifyContent: "space-between", fontSize: 13, padding: "3px 0", borderBottom: idx < o.items.length - 1 ? "1px solid rgba(255,255,255,.05)" : "none" }}>
+                <span>{item.qty}× {item.dish}</span>
+                <span style={{ color: "var(--muted)" }}>{money((item.price ?? 0) * item.qty)}</span>
+              </div>
+            ))}
+            <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 6, fontWeight: 900, color: "var(--gold2)" }}>{money(o.total ?? 0)}</div>
           </div>
-          <small style={{ display: "block", color: "var(--muted)", marginTop: 10 }}>Estado: {tipAccepted ? "propina aceptada" : "sin propina registrada"}</small>
-        </div>
-        <div className="panel" style={{ boxShadow: "none" }}>
-          <h2>Pedidos</h2>
-          {tableOrders.map((o) => (
-            <p key={o.id} style={{ color: "var(--muted)" }}>
-              <b>{o.id}</b> · {STATUS_DISPLAY[o.status] ?? o.status} · {o.items.map((i) => `${i.qty}× ${i.dish}`).join(", ")}
-            </p>
-          ))}
-        </div>
-        <div className="panel" style={{ boxShadow: "none" }}>
+        ))}
+      </div>
+
+      {/* Messages */}
+      {tableMessages.length > 0 && (
+        <div className="panel" style={{ boxShadow: "none", marginBottom: 4 }}>
           <h2>Mensajes del cliente</h2>
           {tableMessages.map((m) => (
-            <blockquote key={m.id} style={{ borderLeft: "3px solid var(--gold)", paddingLeft: 10, color: "#eadfd4" }}>{m.text}</blockquote>
+            <blockquote key={m.id} style={{ borderLeft: "3px solid var(--gold)", paddingLeft: 10, color: "#eadfd4", margin: "6px 0" }}>{m.text}</blockquote>
           ))}
         </div>
-        {/* Waiter manual order taking */}
-        {!takingOrder ? (
-          <button className="btn primary" style={{ width: "100%" }} onClick={() => setTakingOrder(true)}>
-            + Tomar pedido manualmente
-          </button>
-        ) : (
-          <WaiterOrderPanel tableId={liveTable.id} staffId={staffId} state={state} onClose={() => setTakingOrder(false)} />
-        )}
-        {(role === "admin" || role === "caja") && bill > 0 && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 8 }}>
-            <div style={{ display: "flex", gap: 8 }}>
-              {(["cash", "card", "transfer"] as const).map((m) => (
-                <button
-                  key={m}
-                  className={`btn ${paymentMethod === m ? "primary" : "ghost"}`}
-                  style={{ flex: 1, fontSize: 12 }}
-                  onClick={() => setPaymentMethod(m)}
-                >
-                  {m === "cash" ? "Efectivo" : m === "card" ? "Tarjeta" : "Transferencia"}
-                </button>
-              ))}
-            </div>
-            <button className="btn primary" onClick={() => setShowReceipt(true)}>
-              Ver boleta · {money(total)}
+      )}
+
+      {/* Billing section */}
+      {canBill && bill > 0 && (
+        <div className="tip-box" style={{ marginBottom: 10 }}>
+          <b>Resumen de cobro</b>
+          <div className="receipt-row" style={{ color: "var(--text)", marginTop: 8 }}><span>Subtotal</span><b>{money(bill)}</b></div>
+          <div className="receipt-row" style={{ color: "var(--text)" }}>
+            <span>Propina 10%</span>
+            <b style={{ color: tipAccepted ? "var(--green)" : "var(--muted)" }}>{tipAccepted ? money(suggestedTip) : "No agregada"}</b>
+          </div>
+          <div className="receipt-row receipt-total" style={{ color: "var(--text)" }}><span>Total</span><b>{money(total)}</b></div>
+          <div className="tip-actions" style={{ marginTop: 10 }}>
+            <button className={`btn ${tipAccepted ? "primary" : "ghost"}`} onClick={() => setTipAccepted(true)}>
+              {tipAccepted ? "✓ Propina 10%" : "Agregar 10%"}
+            </button>
+            <button className={`btn ${!tipAccepted ? "primary" : "ghost"}`} onClick={() => setTipAccepted(false)}>
+              Sin propina
             </button>
           </div>
-        )}
-        {showReceipt && (
-          <div className="modal-backdrop">
-            <div className="modal">
-              <div className="panel-head">
-                <div><h2>Confirmar cobro</h2><p style={{ margin: "4px 0 0" }}>Mesa {liveTable.id} · {paymentMethod === "cash" ? "Efectivo" : paymentMethod === "card" ? "Tarjeta" : "Transferencia"}</p></div>
-                <button className="btn ghost" onClick={() => setShowReceipt(false)}>Cerrar</button>
-              </div>
-              <TableReceipt table={{ ...liveTable, bill }} waiterName={waiter?.name ?? "—"} />
-              <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 14 }}>
-                <button className="btn ghost" onClick={() => setShowReceipt(false)}>Volver</button>
-                <button className="btn ghost" onClick={() => window.print()}>Imprimir</button>
-                <button className="btn primary" onClick={handleCobrar}>
-                  {`Cobrar ${money(total)}`}
-                </button>
-              </div>
+          <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+            {(["cash", "card", "transfer"] as const).map((m) => (
+              <button key={m} className={`btn ${paymentMethod === m ? "primary" : "ghost"}`} style={{ flex: 1, fontSize: 12 }} onClick={() => setPaymentMethod(m)}>
+                {m === "cash" ? "Efectivo" : m === "card" ? "Tarjeta" : "Transf."}
+              </button>
+            ))}
+          </div>
+          <button className="btn primary" style={{ width: "100%", marginTop: 10, fontSize: 15 }} onClick={() => setShowReceipt(true)}>
+            Ver ticket · {money(total)}
+          </button>
+        </div>
+      )}
+
+      {showReceipt && (
+        <div className="modal-backdrop">
+          <div className="modal">
+            <div className="panel-head">
+              <div><h2>Ticket Mesa {liveTable.id}</h2><p style={{ margin: "4px 0 0" }}>{paymentMethod === "cash" ? "Efectivo" : paymentMethod === "card" ? "Tarjeta" : "Transferencia"}</p></div>
+              <button className="btn ghost" onClick={() => setShowReceipt(false)}>Cerrar</button>
+            </div>
+            <TableReceipt table={{ ...liveTable, bill, tipAmount, tipAccepted } as TableWithTip} waiterName={waiter?.name ?? "—"} />
+            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 14, flexWrap: "wrap" }}>
+              <button className="btn ghost" onClick={() => setShowReceipt(false)}>Volver</button>
+              <button className="btn ghost" onClick={() => window.print()}>Imprimir</button>
+              <button className="btn primary" onClick={handleCobrar}>Cobrar {money(total)}</button>
             </div>
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </aside>
   );
 }
@@ -1807,7 +1947,7 @@ export default function GastroAdmin({ authStaff, onSignOut }: GastroAdminProps) 
   }, [authStaff, state.staff, role]);
 
   // Restrict tabs by role
-  const adminOnly: string[] = ["sales", "staff", "inventory", "qr", "menu", "settings", "dashboard", "reviews"];
+  const adminOnly: string[] = ["sales", "staff", "inventory", "qr", "menu", "settings", "dashboard", "reviews", "kitchen"];
   const safeTab: TabId =
     role === "cocina" ? "kitchen" :
     role === "camarero" && adminOnly.includes(tab) ? "tables" :
@@ -1816,6 +1956,7 @@ export default function GastroAdmin({ authStaff, onSignOut }: GastroAdminProps) 
   const content = useMemo(() => {
     switch (safeTab) {
       case "tables": return <TablesView role={role} staffId={staffId} state={state} />;
+      case "comanda": return <ComandaView role={role} staffId={staffId} state={state} />;
       case "orders": return <OrdersView role={role} staffId={staffId} state={state} />;
       case "kitchen": return <KitchenView state={state} role={role} />;
       case "calls": return <CallsView role={role} staffId={staffId} state={state} />;

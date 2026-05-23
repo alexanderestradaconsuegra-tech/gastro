@@ -275,6 +275,7 @@ export const ORDER_STATUS_LABELS: Record<string, string> = {
 export const ADMIN_TABS = [
   { id: "dashboard", label: "Dashboard", icon: "◈" },
   { id: "tables", label: "Mesas", icon: "⊞" },
+  { id: "comanda", label: "Comanda", icon: "✎" },
   { id: "orders", label: "Órdenes", icon: "≡" },
   { id: "kitchen", label: "Cocina", icon: "◉" },
   { id: "calls", label: "Llamados", icon: "◎" },
