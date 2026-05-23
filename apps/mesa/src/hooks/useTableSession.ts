@@ -52,6 +52,7 @@ export interface SessionState {
   waiterCall: WaiterCall;
   loading: boolean;
   error: string | null;
+  tableStatus: string;
 }
 
 type Action =
@@ -65,7 +66,8 @@ type Action =
   | { type: "CLEAR_CART" }
   | { type: "ADD_ORDER"; order: Order }
   | { type: "UPDATE_ORDER_STATUS"; orderId: string; status: KitchenStatus; etaMinutes: number | null }
-  | { type: "SET_WAITER_CALL"; call: WaiterCall };
+  | { type: "SET_WAITER_CALL"; call: WaiterCall }
+  | { type: "SET_TABLE_STATUS"; status: string };
 
 // ── Reducer ──────────────────────────────────────────────────────────────────
 
@@ -108,8 +110,22 @@ function reducer(state: SessionState, action: Action): SessionState {
       return { ...state, cartNote: action.note };
     case "CLEAR_CART":
       return { ...state, cart: [], cartNote: "" };
-    case "ADD_ORDER":
+    case "ADD_ORDER": {
+      const isReal = !action.order.id.startsWith("optimistic-");
+      if (isReal) {
+        // When a real order arrives from DB, replace any optimistic order keeping its items
+        const firstOptimistic = state.orders.find((o) => o.id.startsWith("optimistic-"));
+        const items = firstOptimistic?.items?.length ? firstOptimistic.items : action.order.items;
+        return {
+          ...state,
+          orders: [
+            { ...action.order, items },
+            ...state.orders.filter((o) => !o.id.startsWith("optimistic-") && o.id !== action.order.id),
+          ],
+        };
+      }
       return { ...state, orders: [action.order, ...state.orders] };
+    }
     case "UPDATE_ORDER_STATUS":
       return {
         ...state,
@@ -121,6 +137,8 @@ function reducer(state: SessionState, action: Action): SessionState {
       };
     case "SET_WAITER_CALL":
       return { ...state, waiterCall: action.call };
+    case "SET_TABLE_STATUS":
+      return { ...state, tableStatus: action.status };
     default:
       return state;
   }
@@ -135,6 +153,7 @@ const initialState: SessionState = {
   waiterCall: { pending: false, reason: "", calledAt: null },
   loading: true,
   error: null,
+  tableStatus: "",
 };
 
 // ── Hook ─────────────────────────────────────────────────────────────────────
@@ -211,6 +230,33 @@ export function useTableSession(qrToken: string) {
     realtimeChannelRef.current = channel;
     return () => {
       supabase.removeChannel(channel);
+    };
+  }, [state.tableCtx]);
+
+  // ── Poll table status (detect payment/close) ─────────────────────────────
+  useEffect(() => {
+    const ctx = state.tableCtx;
+    if (!ctx) return;
+    let cancelled = false;
+
+    const tableId = ctx.tableId;
+    async function pollStatus() {
+      try {
+        const rows = await sbFetch<{ status: string }>(
+          "tables",
+          `select=status&id=eq.${tableId}&limit=1`
+        );
+        if (!cancelled && rows[0]?.status) {
+          dispatch({ type: "SET_TABLE_STATUS", status: rows[0].status });
+        }
+      } catch { /* ignore */ }
+    }
+
+    pollStatus();
+    const interval = setInterval(pollStatus, 10_000);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
     };
   }, [state.tableCtx]);
 

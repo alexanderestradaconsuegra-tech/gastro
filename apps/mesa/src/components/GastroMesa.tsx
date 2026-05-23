@@ -332,46 +332,135 @@ function CartDrawer({
 
 // ── OrderStatus ───────────────────────────────────────────────────────────────
 
-function OrderStatus({ orders, tableLabel }: { orders: Order[]; tableLabel: string }) {
+const STATUS_RANK: Record<string, number> = { received: 0, prep: 1, plating: 2, served: 3 };
+const STATUS_LABEL: Record<string, string> = {
+  received: "Recibido en cocina",
+  prep: "Preparando tus platos",
+  plating: "¡Listo para servir!",
+  served: "Servido",
+};
+const DISH_STATUS_LABEL: Record<string, string> = {
+  received: "En cocina",
+  prep: "Preparando",
+  plating: "Listo ✓",
+  served: "Servido ✓",
+};
+
+function OrderStatus({ orders, tableLabel, tableStatus }: {
+  orders: Order[];
+  tableLabel: string;
+  tableStatus: string;
+}) {
+  const moneyFmt = (n: number) => `$${Number(n || 0).toLocaleString("es-CL")}`;
+  const active = orders.filter((o) => (o.status as string) !== "served" && (o.status as string) !== "cancelled");
+  const allItems = orders.flatMap((o) =>
+    (o.items ?? []).map((ci) => ({ ...ci, orderStatus: o.status, orderId: o.id }))
+  );
+
+  // Table paid — show thank-you
+  if (tableStatus === "Libre" && orders.length > 0) {
+    return (
+      <main className="screen fade">
+        <Header tableLabel={tableLabel} />
+        <div style={{ textAlign: "center", padding: "60px 20px" }}>
+          <div style={{ fontSize: 72, marginBottom: 18 }}>✓</div>
+          <h2 style={{ fontFamily: "'Playfair Display',serif", fontSize: 32 }}>¡Cuenta cerrada!</h2>
+          <p style={{ color: "var(--muted)", marginTop: 8 }}>Gracias por visitarnos. ¡Hasta pronto!</p>
+        </div>
+      </main>
+    );
+  }
+
+  if (orders.length === 0) {
+    return (
+      <main className="screen fade">
+        <Header tableLabel={tableLabel} />
+        <div className="section-title"><h2>Tu pedido</h2></div>
+        <div className="empty glass">Aún no has realizado ningún pedido.</div>
+      </main>
+    );
+  }
+
+  // Overall status = worst (earliest) of active orders
+  const overallStatus = active.length > 0
+    ? active.reduce((worst, o) =>
+        (STATUS_RANK[o.status] ?? 0) < (STATUS_RANK[worst] ?? 0) ? o.status : worst,
+        active[0].status)
+    : "served";
+
+  const totalBill = orders.reduce((s, o) => s + (o.total ?? 0), 0);
+  const firstEta = active[0]?.etaMinutes;
+
   return (
     <main className="screen fade">
       <Header tableLabel={tableLabel} />
       <div className="section-title">
-        <h2>Estado del pedido</h2>
-        <span>Live kitchen</span>
+        <h2>Tu pedido</h2>
+        <span style={{ color: "var(--green)", fontSize: 11, fontWeight: 900 }}>● En vivo</span>
       </div>
-      {orders.length ? (
-        orders.map((o) => (
-          <article key={o.id} className="status-card glass">
-            <div className="status-head">
-              <div>
-                <h3>{o.id.startsWith("optimistic") ? "Nuevo pedido" : o.id}</h3>
-                <small>{new Date(o.createdAt).toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" })}</small>
+
+      {/* Overall progress */}
+      <article className="status-card glass" style={{ marginBottom: 14 }}>
+        <div className="status-head">
+          <div>
+            <h3 style={{ margin: 0 }}>{STATUS_LABEL[overallStatus] ?? overallStatus}</h3>
+            {active.length > 0 && (
+              <small style={{ color: "var(--muted)" }}>
+                {active.length} pedido{active.length > 1 ? "s" : ""} en curso
+              </small>
+            )}
+          </div>
+          {firstEta && <div className="eta">{firstEta} min</div>}
+        </div>
+        <div className="steps">
+          {KITCHEN_STEPS.map((s, i) => (
+            <span key={s.key} className={`step ${i <= statusIndex(overallStatus) ? "on" : ""}`} />
+          ))}
+        </div>
+      </article>
+
+      {/* Dish list */}
+      {allItems.length > 0 ? (
+        <div style={{ display: "flex", flexDirection: "column", gap: 9, marginBottom: 14 }}>
+          {allItems.map(({ item, qty, orderStatus }, idx) => {
+            const isReady = orderStatus === "plating" || orderStatus === "served";
+            return (
+              <div key={idx} className="status-card glass" style={{
+                padding: "12px 14px",
+                display: "flex", justifyContent: "space-between", alignItems: "center",
+                borderColor: isReady ? "rgba(52,211,153,.4)" : undefined,
+              }}>
+                <b>{qty}× {item.name}</b>
+                <span style={{
+                  fontSize: 12, fontWeight: 900,
+                  color: isReady ? "var(--green)" : "var(--gold2)",
+                  background: isReady ? "rgba(52,211,153,.12)" : "rgba(247,211,123,.12)",
+                  padding: "4px 10px", borderRadius: 999,
+                }}>
+                  {DISH_STATUS_LABEL[orderStatus] ?? orderStatus}
+                </span>
               </div>
-              <div className="eta">
-                {o.status === "served" ? "Listo" : o.etaMinutes ? `${o.etaMinutes} min` : "En cocina"}
-              </div>
-            </div>
-            <div className="steps">
-              {KITCHEN_STEPS.map((s, i) => (
-                <span key={s.key} className={`step ${i <= statusIndex(o.status) ? "on" : ""}`} />
-              ))}
-            </div>
-            <div className="order-lines">
-              {KITCHEN_STEPS.map((s, i) => (
-                <div key={s.key} style={{ opacity: i <= statusIndex(o.status) ? 1 : 0.38 }}>
-                  ● {s.label}
-                </div>
-              ))}
-              <br />
-              {o.items.map(({ item, qty }) => (
-                <div key={item.id}>{qty}× {item.name}</div>
-              ))}
-            </div>
-          </article>
-        ))
+            );
+          })}
+        </div>
       ) : (
-        <div className="empty glass">No hay pedidos activos.</div>
+        /* Orders with no items loaded (refresh scenario) */
+        <div style={{ display: "flex", flexDirection: "column", gap: 9, marginBottom: 14 }}>
+          {orders.map((o) => (
+            <div key={o.id} className="status-card glass" style={{ padding: "12px 14px", display: "flex", justifyContent: "space-between" }}>
+              <b>{o.id.startsWith("optimistic") ? "Pedido enviado" : o.id}</b>
+              <span style={{ color: "var(--muted)", fontSize: 12 }}>{STATUS_LABEL[o.status] ?? o.status}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Total */}
+      {totalBill > 0 && (
+        <div className="status-card glass" style={{ padding: "12px 14px", display: "flex", justifyContent: "space-between" }}>
+          <span style={{ color: "var(--muted)" }}>Total consumo</span>
+          <b style={{ color: "var(--gold2)" }}>{moneyFmt(totalBill)}</b>
+        </div>
       )}
     </main>
   );
@@ -783,7 +872,7 @@ export default function GastroMesa({ qrToken }: { qrToken: string }) {
           tableLabel={tableCtx.tableLabel}
         />
       )}
-      {tab === "order" && <OrderStatus orders={session.orders} tableLabel={tableCtx.tableLabel} />}
+      {tab === "order" && <OrderStatus orders={session.orders} tableLabel={tableCtx.tableLabel} tableStatus={session.tableStatus} />}
       {tab === "waiter" && (
         <Waiter
           pending={session.waiterCall.pending}
