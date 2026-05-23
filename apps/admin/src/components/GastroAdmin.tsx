@@ -349,38 +349,63 @@ function Dashboard({ role, staffId, state }: RoleStaffState) {
 function TablesView({ role, staffId, state }: RoleStaffState) {
   const isAdmin = role === "admin";
   const [selectedTable, setSelectedTable] = useState<TableRow | null>(null);
-  const visible = state.tables.filter((t) => isAdmin || t.waiterId === staffId);
+  // Admin sees all; camarero sees own tables + occupied unassigned tables (to claim)
+  const visible = state.tables.filter(
+    (t) => isAdmin || t.waiterId === staffId || (!t.waiterId && t.status !== "Libre")
+  );
+  const myCount = visible.filter((t) => t.waiterId === staffId).length;
   return (
     <div className="grid">
       <div className="panel">
         <div className="panel-head">
-          <h2>{isAdmin ? "Mapa de mesas" : "Mesas que atiendo"}</h2>
-          <span className="badge">{visible.length} mesas</span>
+          <h2>{isAdmin ? "Mapa de mesas" : "Mesas"}</h2>
+          <span className="badge">{isAdmin ? `${visible.length} mesas` : `${myCount} mías`}</span>
         </div>
         <div className="table-grid">
           {visible.map((t) => {
             const waiter = getStaffById(state.staff, t.waiterId);
+            const isUnassigned = !t.waiterId;
+            const isMine = t.waiterId === staffId;
             return (
-              <div className="table-card" key={t.id}>
+              <div className="table-card" key={t.id} style={isUnassigned && !isAdmin ? { borderColor: "rgba(217,164,65,.4)", background: "linear-gradient(145deg,rgba(217,164,65,.08),rgba(255,255,255,.025))" } : undefined}>
                 <div style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
                   <h3>Mesa {t.id}</h3>
                   <span className={`badge ${statusBadge(t.status)}`}>{t.status}</span>
                 </div>
                 <div className="meta"><span>{t.zone}</span><span>{t.guests} pax</span></div>
-                <div className="meta"><span>Camarero</span><b>{waiter?.name ?? "Sin asignar"}</b></div>
-                {isAdmin && <div className="meta"><span>Cuenta</span><b>{money(t.bill)}</b></div>}
-                <div className="field" style={{ marginTop: 10 }}>
-                  <label>Asignar camarero</label>
-                  <select className="input" value={t.waiterId || ""} onChange={(e) => state.assignWaiter(t.id, e.target.value)}>
-                    <option value="">Sin asignar</option>
-                    {state.staff.filter((s) => s.role === "camarero").map((s) => (
-                      <option key={s.id} value={s.id}>{s.name}</option>
-                    ))}
-                  </select>
+                <div className="meta">
+                  <span>Camarero</span>
+                  <b style={isUnassigned ? { color: "var(--gold2)" } : undefined}>
+                    {isMine ? "Yo" : waiter?.name ?? "Sin asignar"}
+                  </b>
                 </div>
+                {isAdmin && <div className="meta"><span>Cuenta</span><b>{money(t.bill)}</b></div>}
+                {isAdmin && (
+                  <div className="field" style={{ marginTop: 10 }}>
+                    <label>Asignar camarero</label>
+                    <select className="input" value={t.waiterId || ""} onChange={(e) => state.assignWaiter(t.id, e.target.value)}>
+                      <option value="">Sin asignar</option>
+                      {state.staff.filter((s) => s.role === "camarero").map((s) => (
+                        <option key={s.id} value={s.id}>{s.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
                 <div className="table-actions">
-                  <button className="btn primary" onClick={() => setSelectedTable(t)}>Atender</button>
-                  <button className="btn ghost" onClick={() => setSelectedTable(t)}>Ver ficha</button>
+                  {!isAdmin && isUnassigned ? (
+                    <button
+                      className="btn primary"
+                      style={{ gridColumn: "1/-1" }}
+                      onClick={() => { state.assignWaiter(t.id, staffId); setSelectedTable(t); }}
+                    >
+                      Tomar mesa
+                    </button>
+                  ) : (
+                    <>
+                      <button className="btn primary" onClick={() => setSelectedTable(t)}>Atender</button>
+                      <button className="btn ghost" onClick={() => setSelectedTable(t)}>Ver ficha</button>
+                    </>
+                  )}
                 </div>
               </div>
             );
