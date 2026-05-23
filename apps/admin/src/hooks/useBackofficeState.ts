@@ -56,6 +56,7 @@ export interface BackofficeState {
   toggleQr: (tableId: number) => void;
   regenerateQr: (tableId: number) => void;
   notifyWaiter: (tableId: number, waiterId: string, orderId: string, dishes: string) => void;
+  submitWaiterOrder: (tableId: number, staffId: string, items: Array<{ menuItemId: string; dishName: string; qty: number; unitPrice: number }>, notes: string) => Promise<{ ok: boolean; error?: string }>;
   saveStaffAvatar: (staffId: string, url: string) => void;
 }
 
@@ -633,6 +634,59 @@ export function useBackofficeState(): BackofficeState {
     sbPatch("staff", { id: staffId }, { avatar_url: url }).catch(() => {});
   }, []);
 
+  const submitWaiterOrder = useCallback(async (
+    tableId: number,
+    staffId: string,
+    items: Array<{ menuItemId: string; dishName: string; qty: number; unitPrice: number }>,
+    notes: string
+  ): Promise<{ ok: boolean; error?: string }> => {
+    const total = items.reduce((sum, i) => sum + i.unitPrice * i.qty, 0);
+    const orderId = `ORD-${Math.floor(Math.random() * 9000 + 1000)}`;
+    const optimisticOrder: Order = {
+      id: orderId,
+      tableId,
+      waiterId: staffId,
+      status: "received",
+      priority: "Normal",
+      eta: 18,
+      channel: "Camarero",
+      items: items.map((i) => ({ dish: i.dishName, qty: i.qty, status: "Pendiente", price: i.unitPrice })),
+      notes,
+      total,
+    };
+    setOrders((prev) => [optimisticOrder, ...prev]);
+    if (!supabaseAvailable.current) return { ok: true };
+    try {
+      await sbInsert("orders", {
+        id: orderId,
+        restaurant_id: "nido",
+        table_id: tableId,
+        session_id: `waiter-${tableId}-${Date.now()}`,
+        waiter_id: staffId,
+        status: "received",
+        priority: "Normal",
+        channel: "Camarero",
+        eta_minutes: 18,
+        notes: notes || null,
+        total,
+      });
+      for (const item of items) {
+        await sbInsert("order_items", {
+          id: `${orderId}-${item.menuItemId}-${Date.now()}`,
+          order_id: orderId,
+          menu_item_id: item.menuItemId,
+          dish_name: item.dishName,
+          qty: item.qty,
+          unit_price: item.unitPrice,
+          status: "pending",
+        });
+      }
+      return { ok: true };
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : "Error al enviar pedido" };
+    }
+  }, []);
+
   const notifyWaiter = useCallback((tableId: number, waiterId: string, orderId: string, dishes: string) => {
     const id = `C-${Math.random().toString(16).slice(2, 10).toUpperCase()}`;
     const call: Call = {
@@ -705,5 +759,6 @@ export function useBackofficeState(): BackofficeState {
     toggleQr,
     regenerateQr,
     notifyWaiter,
+    submitWaiterOrder,
   };
 }

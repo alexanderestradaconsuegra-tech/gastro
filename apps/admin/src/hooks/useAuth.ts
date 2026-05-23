@@ -77,7 +77,8 @@ export function useAuth() {
       return;
     }
     // Show app immediately with email; load full staff profile in background
-    const fallback: StaffProfile = { id: "", name: email.split("@")[0], email, role: "admin", shift: "", phone: "" };
+    const guessedRole: StaffRole = email.includes("cocina") ? "cocina" : email.includes("admin") || email.includes("caja") ? "admin" : "camarero";
+    const fallback: StaffProfile = { id: "", name: email.split("@")[0], email, role: guessedRole, shift: "", phone: "" };
     setState({ session: { email }, staff: fallback, loading: false, error: null });
     fetchStaffProfile(email).then((profile) => {
       if (profile) setState((prev) => ({ ...prev, staff: profile }));
@@ -92,7 +93,8 @@ export function useAuth() {
       return { ok: false, error: result.error };
     }
     // Load staff profile
-    const fallback: StaffProfile = { id: "", name: email.split("@")[0], email, role: "admin", shift: "", phone: "" };
+    const guessedRole: StaffRole = email.includes("cocina") ? "cocina" : email.includes("admin") || email.includes("caja") ? "admin" : "camarero";
+    const fallback: StaffProfile = { id: "", name: email.split("@")[0], email, role: guessedRole, shift: "", phone: "" };
     setState({ session: { email }, staff: fallback, loading: false, error: null });
     fetchStaffProfile(email).then((profile) => {
       if (profile) setState((prev) => ({ ...prev, staff: profile }));

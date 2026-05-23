@@ -388,7 +388,7 @@ function TablesView({ role, staffId, state }: RoleStaffState) {
         </div>
       </div>
       {selectedTable && (
-        <TableDrawer table={selectedTable} role={role} state={state} onClose={() => setSelectedTable(null)} />
+        <TableDrawer table={selectedTable} role={role} staffId={staffId} state={state} onClose={() => setSelectedTable(null)} />
       )}
     </div>
   );
@@ -426,10 +426,95 @@ function TableReceipt({ table, waiterName }: { table: TableWithTip; waiterName: 
   );
 }
 
-function TableDrawer({ table, role, state, onClose }: { table: TableRow; role: StaffRole; state: BackofficeState; onClose: () => void }) {
+function WaiterOrderPanel({ tableId, staffId, state, onClose }: {
+  tableId: number;
+  staffId: string;
+  state: BackofficeState;
+  onClose: () => void;
+}) {
+  const [qty, setQty] = useState<Record<string, number>>({});
+  const [notes, setNotes] = useState("");
+  const [category, setCategory] = useState("Todo");
+  const [sending, setSending] = useState(false);
+  const [sent, setSent] = useState(false);
+
+  const categories = ["Todo", ...Array.from(new Set(state.menuItems.map((m) => m.category)))];
+  const visible = category === "Todo" ? state.menuItems : state.menuItems.filter((m) => m.category === category);
+  const cartItems = state.menuItems.filter((m) => (qty[m.id] ?? 0) > 0);
+  const total = cartItems.reduce((sum, m) => sum + m.price * (qty[m.id] ?? 0), 0);
+
+  async function submit() {
+    if (cartItems.length === 0) return;
+    setSending(true);
+    const items = cartItems.map((m) => ({
+      menuItemId: m.id,
+      dishName: m.name,
+      qty: qty[m.id] ?? 1,
+      unitPrice: m.price,
+    }));
+    await state.submitWaiterOrder(tableId, staffId, items, notes);
+    setSending(false);
+    setSent(true);
+    setTimeout(onClose, 1200);
+  }
+
+  if (sent) return <div style={{ padding: 20, textAlign: "center", color: "var(--green)" }}>✓ Pedido enviado a cocina</div>;
+
+  return (
+    <div>
+      <div className="panel-head" style={{ marginBottom: 12 }}>
+        <h2 style={{ fontSize: 22 }}>Tomar pedido</h2>
+        <button className="btn ghost" style={{ fontSize: 12 }} onClick={onClose}>Cancelar</button>
+      </div>
+      <div className="tab" style={{ marginBottom: 12 }}>
+        {categories.map((c) => (
+          <button key={c} className={`${category === c ? "on" : ""}`} onClick={() => setCategory(c)} style={{ whiteSpace: "nowrap", border: "1px solid var(--line)", background: category === c ? "linear-gradient(135deg,var(--gold),var(--gold2))" : "rgba(255,255,255,.045)", color: category === c ? "#171006" : "var(--muted)", borderRadius: 999, padding: "8px 12px", fontWeight: 900, fontSize: 12 }}>
+            {c}
+          </button>
+        ))}
+      </div>
+      <div className="list" style={{ marginBottom: 12 }}>
+        {visible.filter((m) => m.available).map((m) => (
+          <div key={m.id} className="row">
+            <div className="row-main">
+              <b>{m.name}</b>
+              <small>{money(m.price)}</small>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <button className="btn ghost" style={{ width: 30, height: 30, padding: 0, borderRadius: 10, fontSize: 18 }} onClick={() => setQty((prev) => ({ ...prev, [m.id]: Math.max(0, (prev[m.id] ?? 0) - 1) }))}>−</button>
+              <span style={{ minWidth: 20, textAlign: "center", fontWeight: 900 }}>{qty[m.id] ?? 0}</span>
+              <button className="btn primary" style={{ width: 30, height: 30, padding: 0, borderRadius: 10, fontSize: 18 }} onClick={() => setQty((prev) => ({ ...prev, [m.id]: (prev[m.id] ?? 0) + 1 }))}>+</button>
+            </div>
+          </div>
+        ))}
+      </div>
+      {cartItems.length > 0 && (
+        <div style={{ borderTop: "1px solid var(--line)", paddingTop: 12 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+            <b>{cartItems.length} plato(s)</b>
+            <b style={{ color: "var(--gold2)" }}>{money(total)}</b>
+          </div>
+          <textarea
+            className="textarea"
+            style={{ marginBottom: 10, minHeight: 56 }}
+            placeholder="Notas (alergias, puntos de cocción…)"
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+          />
+          <button className="btn primary" style={{ width: "100%" }} onClick={() => void submit()} disabled={sending}>
+            {sending ? "Enviando…" : `Enviar pedido · ${money(total)}`}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TableDrawer({ table, role, staffId, state, onClose }: { table: TableRow; role: StaffRole; staffId: string; state: BackofficeState; onClose: () => void }) {
   const liveTable = (state.tables.find((t) => t.id === table.id) ?? table) as TableWithTip;
   const [showReceipt, setShowReceipt] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<"cash" | "card" | "transfer">("cash");
+  const [takingOrder, setTakingOrder] = useState(false);
   const waiter = getStaffById(state.staff, liveTable.waiterId);
   const tableOrders = state.orders.filter((o) => o.tableId === liveTable.id);
   const tableMessages = state.messages.filter((m) => m.tableId === liveTable.id);
@@ -483,6 +568,14 @@ function TableDrawer({ table, role, state, onClose }: { table: TableRow; role: S
             <blockquote key={m.id} style={{ borderLeft: "3px solid var(--gold)", paddingLeft: 10, color: "#eadfd4" }}>{m.text}</blockquote>
           ))}
         </div>
+        {/* Waiter manual order taking */}
+        {!takingOrder ? (
+          <button className="btn primary" style={{ width: "100%" }} onClick={() => setTakingOrder(true)}>
+            + Tomar pedido manualmente
+          </button>
+        ) : (
+          <WaiterOrderPanel tableId={liveTable.id} staffId={staffId} state={state} onClose={() => setTakingOrder(false)} />
+        )}
         {(role === "admin" || role === "caja") && bill > 0 && (
           <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 8 }}>
             <div style={{ display: "flex", gap: 8 }}>
@@ -1038,29 +1131,86 @@ function InventoryView({ state }: { state: BackofficeState }) {
 
 // ─── QR ──────────────────────────────────────────────────────────────────────
 function QRView({ state }: { state: BackofficeState }) {
-  const baseUrl = "https://app.tusistema.com/q/";
+  const LS_KEY = "gastro-mesa-base-url";
+  const [mesaUrl, setMesaUrl] = useState<string>(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem(LS_KEY) ?? "";
+    }
+    return "";
+  });
+
+  function saveMesaUrl(val: string) {
+    setMesaUrl(val);
+    if (typeof window !== "undefined") localStorage.setItem(LS_KEY, val.replace(/\/$/, ""));
+  }
+
+  function tableUrl(token: string) {
+    const base = mesaUrl.replace(/\/$/, "") || "https://TU-MESA-URL";
+    return `${base}/mesa?qr=${token}`;
+  }
+
+  function qrImageUrl(token: string) {
+    const url = encodeURIComponent(tableUrl(token));
+    return `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${url}&color=171006&bgcolor=f7d37b&qzone=1`;
+  }
+
   return (
     <div className="grid">
       <div className="panel">
         <div className="panel-head">
-          <div><h2>QR de mesas</h2><p style={{ margin: "4px 0 0" }}>Una sola app de cliente; cada mesa usa token QR interno.</p></div>
-          <span className="badge blue">Tokens</span>
+          <div><h2>QR de mesas</h2><p style={{ margin: "4px 0 0" }}>Escanear con el celular abre la app de cliente para esa mesa.</p></div>
+        </div>
+        <div className="config-card" style={{ marginBottom: 18 }}>
+          <label style={{ display: "block", color: "var(--muted)", fontSize: 12, fontWeight: 800, marginBottom: 6 }}>URL de la app mesa (pega la URL de EasyPanel)</label>
+          <div style={{ display: "flex", gap: 8 }}>
+            <input
+              className="input"
+              style={{ flex: 1 }}
+              placeholder="https://mesa-mesa.fa2cjf.easypanel.host"
+              value={mesaUrl}
+              onChange={(e) => saveMesaUrl(e.target.value)}
+            />
+          </div>
+          {mesaUrl && <small style={{ color: "var(--green)", marginTop: 6, display: "block" }}>✓ URL guardada — los QR apuntan a esta dirección</small>}
+          {!mesaUrl && <small style={{ color: "var(--gold2)", marginTop: 6, display: "block" }}>⚠ Ingresa la URL para generar QR correctos</small>}
         </div>
         <div className="three">
-          {state.qrTokens.map((q) => (
-            <div className="qr-card-admin" key={q.tableId}>
-              <div className="qr-visual" />
-              <div style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
-                <h3 style={{ margin: 0 }}>Mesa {q.tableId}</h3>
-                <span className={`badge ${q.active ? "green" : "red"}`}>{q.active ? "Activo" : "Inactivo"}</span>
+          {state.qrTokens.map((q) => {
+            const url = tableUrl(q.token);
+            const imgUrl = qrImageUrl(q.token);
+            return (
+              <div className="qr-card-admin" key={q.tableId} style={{ textAlign: "center" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                  <h3 style={{ margin: 0 }}>Mesa {q.tableId}</h3>
+                  <span className={`badge ${q.active ? "green" : "red"}`}>{q.active ? "Activo" : "Inactivo"}</span>
+                </div>
+                {mesaUrl ? (
+                  <img
+                    src={imgUrl}
+                    alt={`QR Mesa ${q.tableId}`}
+                    style={{ width: 160, height: 160, borderRadius: 12, border: "4px solid rgba(247,211,123,.3)", display: "block", margin: "0 auto 10px" }}
+                  />
+                ) : (
+                  <div style={{ width: 160, height: 160, borderRadius: 12, border: "2px dashed rgba(255,255,255,.15)", display: "grid", placeItems: "center", margin: "0 auto 10px", color: "var(--muted)", fontSize: 12 }}>
+                    Ingresa URL para ver QR
+                  </div>
+                )}
+                <p style={{ color: "var(--muted)", fontSize: 11, wordBreak: "break-all", margin: "0 0 10px" }}>Token: {q.token}</p>
+                <a
+                  href={url}
+                  target="_blank"
+                  rel="noreferrer"
+                  style={{ display: "block", fontSize: 11, color: "var(--gold2)", wordBreak: "break-all", marginBottom: 10 }}
+                >
+                  {url}
+                </a>
+                <div className="table-actions">
+                  <button className="btn ghost" style={{ fontSize: 11 }} onClick={() => state.toggleQr(q.tableId)}>{q.active ? "Desactivar" : "Activar"}</button>
+                  <button className="btn primary" style={{ fontSize: 11 }} onClick={() => state.regenerateQr(q.tableId)}>Regenerar</button>
+                </div>
               </div>
-              <p style={{ color: "var(--muted)", fontSize: 12, wordBreak: "break-all" }}>{baseUrl}{q.token}</p>
-              <div className="table-actions">
-                <button className="btn ghost" onClick={() => state.toggleQr(q.tableId)}>{q.active ? "Desactivar" : "Activar"}</button>
-                <button className="btn primary" onClick={() => state.regenerateQr(q.tableId)}>Regenerar</button>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
     </div>
@@ -1617,12 +1767,11 @@ function LukaChat({ authStaff, onClose }: { authStaff?: StaffProfile; onClose: (
 
 // ─── Main export ──────────────────────────────────────────────────────────────
 export default function GastroAdmin({ authStaff, onSignOut }: GastroAdminProps) {
-  const initialRole: StaffRole =
+  const role: StaffRole =
     authStaff?.role === "admin" ? "admin" :
     authStaff?.role === "cocina" ? "cocina" :
     "camarero";
-  const [role] = useState<StaffRole>(initialRole);
-  const [tab, setTab] = useState<TabId>(role === "cocina" ? "kitchen" : "tables");
+  const [tab, setTab] = useState<TabId>("tables");
   const [lukaOpen, setLukaOpen] = useState(false);
   const state = useBackofficeState();
 
