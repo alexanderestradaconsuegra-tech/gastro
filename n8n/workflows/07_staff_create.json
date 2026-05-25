@@ -1,0 +1,134 @@
+{
+  "name": "Gastro - Staff Create",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "staff-create",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-staff-create",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300],
+      "webhookId": "staff-create"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ── Validate payload ─────────────────────────────────────────\nconst body = $input.first().json.body ?? $input.first().json;\n\nconst required = ['restaurant_id', 'name', 'email', 'password', 'role'];\nfor (const field of required) {\n  if (!body[field] || String(body[field]).trim() === '') {\n    throw new Error(`Missing required field: ${field}`);\n  }\n}\n\nconst validRoles = ['admin', 'camarero', 'cocina', 'caja'];\nif (!validRoles.includes(body.role)) {\n  throw new Error(`Invalid role. Must be one of: ${validRoles.join(', ')}`);\n}\n\nif (!/^[^@]+@[^@]+\\.[^@]+$/.test(body.email)) {\n  throw new Error('Invalid email address');\n}\n\nif (String(body.password).length < 8) {\n  throw new Error('Password must be at least 8 characters');\n}\n\nreturn [{\n  json: {\n    restaurant_id: body.restaurant_id.trim(),\n    name:          body.name.trim(),\n    email:         body.email.trim().toLowerCase(),\n    password:      body.password,\n    role:          body.role,\n    pin_hash:      body.pin_hash  || null,\n    shift:         body.shift     || null,\n    phone:         body.phone     || null\n  }\n}];"
+      },
+      "id": "code-validate",
+      "name": "Validate Payload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/auth/v1/admin/users",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey",         "value": "={{ $env.SUPABASE_SERVICE_KEY }}" },
+            { "name": "Authorization",  "value": "=Bearer {{ $env.SUPABASE_SERVICE_KEY }}" },
+            { "name": "Content-Type",   "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"email\":         \"{{ $json.email }}\",\n  \"password\":      \"{{ $json.password }}\",\n  \"email_confirm\": true,\n  \"user_metadata\": { \"restaurant_id\": \"{{ $json.restaurant_id }}\" }\n}",
+        "options": {}
+      },
+      "id": "create-auth-user",
+      "name": "Create Auth User",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Check for Auth errors (duplicate email, etc.)\nconst res = $input.first().json;\nif (res.error || res.msg) {\n  throw new Error(res.msg ?? res.error ?? 'Auth user creation failed');\n}\nif (!res.id) {\n  throw new Error('Auth user creation failed: no user ID returned');\n}\n\n// Pass forward merged data\nconst prev = $('Validate Payload').item.json;\nreturn [{\n  json: {\n    ...prev,\n    auth_user_id: res.id\n  }\n}];"
+      },
+      "id": "check-auth-response",
+      "name": "Check Auth Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/staff",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey",         "value": "={{ $env.SUPABASE_SERVICE_KEY }}" },
+            { "name": "Authorization",  "value": "=Bearer {{ $env.SUPABASE_SERVICE_KEY }}" },
+            { "name": "Content-Type",   "value": "application/json" },
+            { "name": "Prefer",         "value": "return=representation" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"restaurant_id\": \"{{ $json.restaurant_id }}\",\n  \"name\":          \"{{ $json.name }}\",\n  \"email\":         \"{{ $json.email }}\",\n  \"role\":          \"{{ $json.role }}\",\n  \"pin_hash\":      {{ $json.pin_hash ? '\"' + $json.pin_hash + '\"' : 'null' }},\n  \"shift\":         {{ $json.shift ? '\"' + $json.shift + '\"' : 'null' }},\n  \"phone\":         {{ $json.phone ? '\"' + $json.phone + '\"' : 'null' }},\n  \"status\":        \"Activo\"\n}",
+        "options": {}
+      },
+      "id": "insert-staff",
+      "name": "Insert Staff Record",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1120, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"ok\": true,\n  \"auth_user_id\": \"{{ $('Check Auth Response').item.json.auth_user_id }}\",\n  \"email\": \"{{ $('Validate Payload').item.json.email }}\",\n  \"role\": \"{{ $('Validate Payload').item.json.role }}\"\n}",
+        "options": { "responseCode": 201 }
+      },
+      "id": "respond-success",
+      "name": "Respond 201",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1340, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={ \"ok\": false, \"error\": \"{{ $json.message ?? $json.error ?? 'Error creando staff' }}\" }",
+        "options": { "responseCode": 400 }
+      },
+      "id": "respond-error",
+      "name": "Respond 400",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1340, 500]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [[{ "node": "Validate Payload", "type": "main", "index": 0 }]]
+    },
+    "Validate Payload": {
+      "main": [[{ "node": "Create Auth User", "type": "main", "index": 0 }]]
+    },
+    "Create Auth User": {
+      "main": [[{ "node": "Check Auth Response", "type": "main", "index": 0 }]]
+    },
+    "Check Auth Response": {
+      "main": [[{ "node": "Insert Staff Record", "type": "main", "index": 0 }]]
+    },
+    "Insert Staff Record": {
+      "main": [[{ "node": "Respond 201", "type": "main", "index": 0 }]]
+    }
+  },
+  "pinData": {},
+  "settings": { "executionOrder": "v1" },
+  "staticData": null,
+  "tags": [{ "name": "gastro" }, { "name": "saas" }],
+  "triggerCount": 0,
+  "updatedAt": "2026-05-25T00:00:00.000Z",
+  "versionId": "1"
+}

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useBackofficeState } from "@/hooks/useBackofficeState";
 import { uploadMenuImage, uploadStaffAvatar } from "@/lib/storage";
+import { getRestaurantId } from "@/lib/supabase";
 import type { StaffProfile } from "@/hooks/useAuth";
 import {
   WEBHOOKS,
@@ -1811,7 +1812,7 @@ function SettingsView({ state }: { state: BackofficeState }) {
   };
   const updateWebhook = (key: string, value: string) => setWebhooks((w) => ({ ...w, [key]: value }));
   const simulateWebhook = async (event: string) => {
-    const payload = { event, restaurantId: "nido", tableId: 7, qrToken: "A7K92", source: "admin", createdAt: new Date().toISOString() };
+    const payload = { event, restaurantId: getRestaurantId(), tableId: 7, qrToken: "A7K92", source: "admin", createdAt: new Date().toISOString() };
     const demoMode = state.demoMode;
     setLogs((rows) => [{
       time: new Date().toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" }),
@@ -1989,7 +1990,7 @@ function LukaChat({ authStaff, onClose }: { authStaff?: StaffProfile; onClose: (
         body: JSON.stringify({
           message: q,
           user_role: authStaff?.role ?? "admin",
-          restaurant_id: "nido",
+          restaurant_id: getRestaurantId(),
         }),
         signal: AbortSignal.timeout(15_000),
       });

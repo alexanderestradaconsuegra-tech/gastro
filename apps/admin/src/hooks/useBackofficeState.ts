@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { isSupabaseConfigured, sbDelete, sbInsert, sbPatch, sbRpc, sbSelect, sbSignUp, sbUpsert, supabase } from "@/lib/supabase";
+import { getRestaurantId, isSupabaseConfigured, sbDelete, sbInsert, sbPatch, sbRpc, sbSelect, sbUpsert, supabase } from "@/lib/supabase";
 import {
   Call,
   CashSession,
@@ -523,7 +523,7 @@ export function useBackofficeState(): BackofficeState {
     if (!supabaseAvailable.current) return;
     sbUpsert("menu_items", {
       id: item.id,
-      restaurant_id: "nido",
+      restaurant_id: getRestaurantId(),
       name: item.name,
       subtitle: item.subtitle,
       description: item.description,
@@ -581,7 +581,7 @@ export function useBackofficeState(): BackofficeState {
     if (!supabaseAvailable.current) return;
     sbInsert("cash_sessions", {
       id,
-      restaurant_id: "nido",
+      restaurant_id: getRestaurantId(),
       opened_by: null,
       turn: "Noche",
       status: "open",
@@ -648,7 +648,7 @@ export function useBackofficeState(): BackofficeState {
     try {
       await sbUpsert("staff", {
         id: staff.id,
-        restaurant_id: "nido",
+        restaurant_id: getRestaurantId(),
         name: staff.name,
         role: staff.role,
         shift: staff.shift || "",
@@ -664,14 +664,34 @@ export function useBackofficeState(): BackofficeState {
   }, []);
 
   const createStaff = useCallback(async (name: string, email: string, role: StaffRole, pin: string, shift: string): Promise<{ ok: boolean; error?: string }> => {
-    const signupRes = await sbSignUp(email, pin);
-    if (!signupRes.ok) return signupRes;
+    const rid = getRestaurantId();
+    const n8nBase = process.env.NEXT_PUBLIC_N8N_WEBHOOK_BASE_URL ?? process.env.N8N_WEBHOOK_BASE_URL ?? "";
+    if (n8nBase && !supabaseAvailable.current === false) {
+      try {
+        const res = await fetch(`${n8nBase}/webhook/staff-create`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ restaurant_id: rid, name, email, password: pin, role, shift }),
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({})) as Record<string, string>;
+          return { ok: false, error: err.error ?? "Error al crear staff" };
+        }
+        // Optimistic local update; real data will arrive via next poll
+        const newMember: StaffMember = { id: `staff-${Date.now()}`, name, email, role, shift, status: "Activo", tables: [], phone: "" };
+        setStaff((prev) => [...prev, newMember]);
+        return { ok: true };
+      } catch (e) {
+        return { ok: false, error: String(e) };
+      }
+    }
+    // Fallback: direct insert (dev/demo mode only — no Auth user created)
     const id = `staff-${Date.now()}`;
     const newMember: StaffMember = { id, name, email, role, shift, status: "Activo", tables: [], phone: "" };
     setStaff((prev) => [...prev, newMember]);
     if (!supabaseAvailable.current) return { ok: true };
     try {
-      await sbInsert("staff", { id, restaurant_id: "nido", name, email, role, shift, status: "Activo" });
+      await sbInsert("staff", { id, restaurant_id: rid, name, email, role, shift, status: "Activo" });
       return { ok: true };
     } catch (e) {
       return { ok: false, error: String(e) };
@@ -690,7 +710,7 @@ export function useBackofficeState(): BackofficeState {
       const qrToken = Math.random().toString(36).substring(2, 7).toUpperCase();
       const newTable: Table = { id, zone, status: "Libre", guests: capacity, waiterId: null, bill: 0, qrToken };
       if (supabaseAvailable.current) {
-        sbInsert("tables", { id, restaurant_id: "nido", zone, qr_token: qrToken, status: "Libre", guests: capacity }).catch(() => {});
+        sbInsert("tables", { id, restaurant_id: getRestaurantId(), zone, qr_token: qrToken, status: "Libre", guests: capacity }).catch(() => {});
       }
       return [...prev, newTable];
     });
@@ -714,7 +734,7 @@ export function useBackofficeState(): BackofficeState {
   const clearDemoData = useCallback(async () => {
     setMenuItems([]);
     if (!supabaseAvailable.current) return;
-    await sbDelete("menu_items", { restaurant_id: "nido" }).catch(() => {});
+    await sbDelete("menu_items", { restaurant_id: getRestaurantId() }).catch(() => {});
   }, []);
 
   const submitWaiterOrder = useCallback(async (
@@ -742,7 +762,7 @@ export function useBackofficeState(): BackofficeState {
     try {
       await sbInsert("orders", {
         id: orderId,
-        restaurant_id: "nido",
+        restaurant_id: getRestaurantId(),
         table_id: tableId,
         session_id: `waiter-${tableId}-${Date.now()}`,
         waiter_id: staffId,
@@ -787,7 +807,7 @@ export function useBackofficeState(): BackofficeState {
     if (!supabaseAvailable.current) return;
     sbInsert("calls", {
       id,
-      restaurant_id: "nido",
+      restaurant_id: getRestaurantId(),
       table_id: tableId,
       session_id: `kitchen-${tableId}-${Date.now()}`,
       waiter_id: waiterId,

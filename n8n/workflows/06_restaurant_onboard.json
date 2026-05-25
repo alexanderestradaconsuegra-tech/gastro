@@ -1,0 +1,228 @@
+{
+  "name": "Gastro - Restaurant Onboard",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "restaurant-onboard",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-onboard",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300],
+      "webhookId": "restaurant-onboard"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ── Validate & Prepare ───────────────────────────────────────\nconst body = $input.first().json.body ?? $input.first().json;\n\nconst required = ['restaurantName', 'ownerName', 'ownerEmail', 'ownerPassword'];\nfor (const field of required) {\n  if (!body[field] || String(body[field]).trim() === '') {\n    throw new Error(`Missing required field: ${field}`);\n  }\n}\n\n// Validate email format\nif (!/^[^@]+@[^@]+\\.[^@]+$/.test(body.ownerEmail)) {\n  throw new Error('Invalid email address');\n}\n\n// Generate restaurant ID: slug from name (lowercase, alphanumeric + hyphens)\nconst baseSlug = body.restaurantName\n  .toLowerCase()\n  .normalize('NFD').replace(/[\\u0300-\\u036f]/g, '') // strip accents\n  .replace(/[^a-z0-9]+/g, '-')\n  .replace(/^-+|-+$/g, '')\n  .slice(0, 40);\n\n// Add short random suffix to avoid collisions\nconst suffix = Math.random().toString(36).slice(2, 6);\nconst restaurantId = `${baseSlug}-${suffix}`;\n\nreturn [{\n  json: {\n    restaurantId,\n    restaurantName: body.restaurantName.trim(),\n    legalName:      body.legalName?.trim()    || body.restaurantName.trim(),\n    rut:            body.rut?.trim()          || null,\n    address:        body.address?.trim()      || null,\n    phone:          body.phone?.trim()        || null,\n    website:        body.website?.trim()      || null,\n    ownerName:      body.ownerName.trim(),\n    ownerEmail:     body.ownerEmail.trim().toLowerCase(),\n    ownerPassword:  body.ownerPassword,\n    plan:           body.plan || 'starter'\n  }\n}];"
+      },
+      "id": "code-validate",
+      "name": "Validate & Prepare",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/restaurants",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey",         "value": "={{ $env.SUPABASE_SERVICE_KEY }}" },
+            { "name": "Authorization",  "value": "=Bearer {{ $env.SUPABASE_SERVICE_KEY }}" },
+            { "name": "Content-Type",   "value": "application/json" },
+            { "name": "Prefer",         "value": "return=representation" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"id\":         \"{{ $json.restaurantId }}\",\n  \"name\":       \"{{ $json.restaurantName }}\",\n  \"legal_name\": \"{{ $json.legalName }}\",\n  \"rut\":        {{ $json.rut ? '\"' + $json.rut + '\"' : 'null' }},\n  \"address\":    {{ $json.address ? '\"' + $json.address + '\"' : 'null' }},\n  \"phone\":      {{ $json.phone ? '\"' + $json.phone + '\"' : 'null' }},\n  \"website\":    {{ $json.website ? '\"' + $json.website + '\"' : 'null' }},\n  \"settings\":   {}\n}",
+        "options": {}
+      },
+      "id": "create-restaurant",
+      "name": "Create Restaurant",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/auth/v1/admin/users",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey",         "value": "={{ $env.SUPABASE_SERVICE_KEY }}" },
+            { "name": "Authorization",  "value": "=Bearer {{ $env.SUPABASE_SERVICE_KEY }}" },
+            { "name": "Content-Type",   "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"email\":          \"{{ $('Validate & Prepare').item.json.ownerEmail }}\",\n  \"password\":       \"{{ $('Validate & Prepare').item.json.ownerPassword }}\",\n  \"email_confirm\":  true,\n  \"user_metadata\":  { \"restaurant_id\": \"{{ $('Validate & Prepare').item.json.restaurantId }}\" }\n}",
+        "options": {}
+      },
+      "id": "create-auth-user",
+      "name": "Create Auth User",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/staff",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey",         "value": "={{ $env.SUPABASE_SERVICE_KEY }}" },
+            { "name": "Authorization",  "value": "=Bearer {{ $env.SUPABASE_SERVICE_KEY }}" },
+            { "name": "Content-Type",   "value": "application/json" },
+            { "name": "Prefer",         "value": "return=representation" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"restaurant_id\": \"{{ $('Validate & Prepare').item.json.restaurantId }}\",\n  \"name\":         \"{{ $('Validate & Prepare').item.json.ownerName }}\",\n  \"email\":        \"{{ $('Validate & Prepare').item.json.ownerEmail }}\",\n  \"role\":         \"admin\",\n  \"shift\":        \"Full\",\n  \"status\":       \"Activo\"\n}",
+        "options": {}
+      },
+      "id": "create-admin-staff",
+      "name": "Create Admin Staff",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1120, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Seed 5 default tables for the new restaurant\nconst rid = $('Validate & Prepare').item.json.restaurantId;\n\nconst tables = [\n  { table_number: 1, label: 'Mesa 1', zone: 'Salón',   qr_token: `${rid}-T1` },\n  { table_number: 2, label: 'Mesa 2', zone: 'Salón',   qr_token: `${rid}-T2` },\n  { table_number: 3, label: 'Mesa 3', zone: 'Salón',   qr_token: `${rid}-T3` },\n  { table_number: 4, label: 'Mesa 4', zone: 'Terraza', qr_token: `${rid}-T4` },\n  { table_number: 5, label: 'Mesa 5', zone: 'Terraza', qr_token: `${rid}-T5` },\n];\n\nreturn tables.map(t => ({\n  json: { restaurant_id: rid, ...t }\n}));"
+      },
+      "id": "build-tables",
+      "name": "Build Default Tables",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1340, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/tables",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey",         "value": "={{ $env.SUPABASE_SERVICE_KEY }}" },
+            { "name": "Authorization",  "value": "=Bearer {{ $env.SUPABASE_SERVICE_KEY }}" },
+            { "name": "Content-Type",   "value": "application/json" },
+            { "name": "Prefer",         "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {}
+      },
+      "id": "insert-tables",
+      "name": "Insert Tables",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1560, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Aggregate — collect all table inserts, then pass forward once\nconst allItems = $input.all();\nconst last = allItems[allItems.length - 1];\nreturn [{ json: last.json }];"
+      },
+      "id": "wait-tables",
+      "name": "Wait All Tables",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1780, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/rpc/send_welcome_email",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey",         "value": "={{ $env.SUPABASE_SERVICE_KEY }}" },
+            { "name": "Authorization",  "value": "=Bearer {{ $env.SUPABASE_SERVICE_KEY }}" },
+            { "name": "Content-Type",   "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"to\":              \"{{ $('Validate & Prepare').item.json.ownerEmail }}\",\n  \"restaurant_name\": \"{{ $('Validate & Prepare').item.json.restaurantName }}\",\n  \"owner_name\":      \"{{ $('Validate & Prepare').item.json.ownerName }}\",\n  \"restaurant_id\":   \"{{ $('Validate & Prepare').item.json.restaurantId }}\",\n  \"login_url\":       \"{{ $env.ADMIN_URL }}/login\"\n}",
+        "continueOnFail": true,
+        "options": {}
+      },
+      "id": "send-email-rpc",
+      "name": "Send Welcome Email",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2000, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"ok\": true,\n  \"restaurant_id\": \"{{ $('Validate & Prepare').item.json.restaurantId }}\",\n  \"email\": \"{{ $('Validate & Prepare').item.json.ownerEmail }}\",\n  \"message\": \"Restaurante creado correctamente\"\n}",
+        "options": { "responseCode": 201 }
+      },
+      "id": "respond-success",
+      "name": "Respond 201",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [2220, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={ \"ok\": false, \"error\": \"{{ $json.message ?? $json.error ?? 'Error interno' }}\" }",
+        "options": { "responseCode": 400 }
+      },
+      "id": "respond-error",
+      "name": "Respond 400",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [2220, 500]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [[{ "node": "Validate & Prepare", "type": "main", "index": 0 }]]
+    },
+    "Validate & Prepare": {
+      "main": [[{ "node": "Create Restaurant", "type": "main", "index": 0 }]]
+    },
+    "Create Restaurant": {
+      "main": [[{ "node": "Create Auth User", "type": "main", "index": 0 }]]
+    },
+    "Create Auth User": {
+      "main": [[{ "node": "Create Admin Staff", "type": "main", "index": 0 }]]
+    },
+    "Create Admin Staff": {
+      "main": [[{ "node": "Build Default Tables", "type": "main", "index": 0 }]]
+    },
+    "Build Default Tables": {
+      "main": [[{ "node": "Insert Tables", "type": "main", "index": 0 }]]
+    },
+    "Insert Tables": {
+      "main": [[{ "node": "Wait All Tables", "type": "main", "index": 0 }]]
+    },
+    "Wait All Tables": {
+      "main": [[{ "node": "Send Welcome Email", "type": "main", "index": 0 }]]
+    },
+    "Send Welcome Email": {
+      "main": [[{ "node": "Respond 201", "type": "main", "index": 0 }]]
+    }
+  },
+  "pinData": {},
+  "settings": { "executionOrder": "v1" },
+  "staticData": null,
+  "tags": [{ "name": "gastro" }, { "name": "saas" }],
+  "triggerCount": 0,
+  "updatedAt": "2026-05-25T00:00:00.000Z",
+  "versionId": "1"
+}

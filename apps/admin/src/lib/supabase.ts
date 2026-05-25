@@ -52,6 +52,22 @@ function getAuthToken(): string {
   return HARDCODED_ANON;
 }
 
+// Decode the restaurant_id claim from the currently stored JWT (user_metadata.restaurant_id).
+// Returns "nido" as safe fallback during dev when no auth session exists.
+export function getRestaurantId(): string {
+  if (typeof window === "undefined") return "nido";
+  try {
+    const token = getAuthToken();
+    if (token === HARDCODED_ANON) return "nido";
+    const payload = JSON.parse(atob(token.split(".")[1])) as Record<string, unknown>;
+    const rid = (payload.user_metadata as Record<string, string> | undefined)?.restaurant_id;
+    if (rid && typeof rid === "string") return rid;
+  } catch {
+    // fall through
+  }
+  return "nido";
+}
+
 export async function sbSelect<T = Record<string, unknown>>(
   table: string,
   qs: string
