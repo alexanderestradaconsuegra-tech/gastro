@@ -555,6 +555,9 @@ function TablesView({ role, staffId, state }: RoleStaffState) {
       {selectedTable && (
         <TableDrawer table={selectedTable} role={role} staffId={staffId} state={state} onClose={() => setSelectedTable(null)} />
       )}
+      {editingTable && (
+        <TableEditor table={editingTable} state={state} onClose={() => setEditingTable(null)} />
+      )}
     </div>
   );
 }
@@ -1943,6 +1946,19 @@ POST /webhook/receipt-print
 POST /webhook/feedback
 POST /webhook/cash-close`}</pre>
         </div>
+      </div>
+      <div className="panel">
+        <div className="panel-head"><h2>Preparar para producción</h2><span className="badge red">Irreversible</span></div>
+        <p style={{ color: "var(--muted)" }}>Limpia los datos demo para empezar con información real del negocio.</p>
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 12 }}>
+          <button className="btn danger" onClick={() => { if(confirm("¿Eliminar toda la carta demo? Esta acción no se puede deshacer.")) { void state.clearDemoData(); } }}>
+            Limpiar carta demo
+          </button>
+        </div>
+        <p style={{ color: "var(--dim)", fontSize: 12, marginTop: 10 }}>
+          Después de limpiar, ve a &quot;Carta&quot; para agregar los platos reales del restaurante.
+          El personal y las mesas no se eliminan.
+        </p>
       </div>
     </div>
   );
