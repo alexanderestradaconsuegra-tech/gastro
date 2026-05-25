@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { isSupabaseConfigured, sbDelete, sbInsert, sbPatch, sbRpc, sbSelect, sbUpsert, supabase } from "@/lib/supabase";
+import { isSupabaseConfigured, sbDelete, sbInsert, sbPatch, sbRpc, sbSelect, sbSignUp, sbUpsert, supabase } from "@/lib/supabase";
 import {
   Call,
   CashSession,
@@ -15,6 +15,7 @@ import {
   OrderStatus,
   Review,
   StaffMember,
+  StaffRole,
   Table,
 } from "@/lib/constants";
 
@@ -58,6 +59,13 @@ export interface BackofficeState {
   notifyWaiter: (tableId: number, waiterId: string, orderId: string, dishes: string) => void;
   submitWaiterOrder: (tableId: number, staffId: string, items: Array<{ menuItemId: string; dishName: string; qty: number; unitPrice: number }>, notes: string) => Promise<{ ok: boolean; error?: string }>;
   saveStaffAvatar: (staffId: string, url: string) => void;
+  saveStaff: (staff: StaffMember) => Promise<{ ok: boolean; error?: string }>;
+  createStaff: (name: string, email: string, role: StaffRole, pin: string, shift: string) => Promise<{ ok: boolean; error?: string }>;
+  deleteStaff: (staffId: string) => Promise<void>;
+  createTable: (zone: string, capacity: number) => Promise<void>;
+  updateTable: (id: number, data: Partial<Pick<Table, "zone" | "guests">>) => Promise<void>;
+  deleteTable: (id: number) => Promise<void>;
+  clearDemoData: () => Promise<void>;
 }
 
 function randomToken() {
@@ -634,6 +642,81 @@ export function useBackofficeState(): BackofficeState {
     sbPatch("staff", { id: staffId }, { avatar_url: url }).catch(() => {});
   }, []);
 
+  const saveStaff = useCallback(async (staff: StaffMember): Promise<{ ok: boolean; error?: string }> => {
+    setStaff((prev) => prev.map((s) => s.id === staff.id ? staff : s));
+    if (!supabaseAvailable.current) return { ok: true };
+    try {
+      await sbUpsert("staff", {
+        id: staff.id,
+        restaurant_id: "nido",
+        name: staff.name,
+        role: staff.role,
+        shift: staff.shift || "",
+        status: staff.status || "Activo",
+        phone: staff.phone || "",
+        email: staff.email || "",
+        avatar_url: staff.avatarUrl || null,
+      });
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, error: String(e) };
+    }
+  }, []);
+
+  const createStaff = useCallback(async (name: string, email: string, role: StaffRole, pin: string, shift: string): Promise<{ ok: boolean; error?: string }> => {
+    const signupRes = await sbSignUp(email, pin);
+    if (!signupRes.ok) return signupRes;
+    const id = `staff-${Date.now()}`;
+    const newMember: StaffMember = { id, name, email, role, shift, status: "Activo", tables: [], phone: "" };
+    setStaff((prev) => [...prev, newMember]);
+    if (!supabaseAvailable.current) return { ok: true };
+    try {
+      await sbInsert("staff", { id, restaurant_id: "nido", name, email, role, shift, status: "Activo" });
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, error: String(e) };
+    }
+  }, []);
+
+  const deleteStaff = useCallback(async (staffId: string) => {
+    setStaff((prev) => prev.filter((s) => s.id !== staffId));
+    if (!supabaseAvailable.current) return;
+    sbDelete("staff", { id: staffId }).catch(() => {});
+  }, []);
+
+  const createTable = useCallback(async (zone: string, capacity: number) => {
+    setTables((prev) => {
+      const id = Math.max(0, ...prev.map((t) => t.id)) + 1;
+      const qrToken = Math.random().toString(36).substring(2, 7).toUpperCase();
+      const newTable: Table = { id, zone, status: "Libre", guests: capacity, waiterId: null, bill: 0, qrToken };
+      if (supabaseAvailable.current) {
+        sbInsert("tables", { id, restaurant_id: "nido", zone, qr_token: qrToken, status: "Libre", guests: capacity }).catch(() => {});
+      }
+      return [...prev, newTable];
+    });
+  }, []);
+
+  const updateTable = useCallback(async (id: number, data: Partial<Pick<Table, "zone" | "guests">>) => {
+    setTables((prev) => prev.map((t) => t.id === id ? { ...t, ...data } : t));
+    if (!supabaseAvailable.current) return;
+    const patch: Record<string, unknown> = {};
+    if (data.zone !== undefined) patch.zone = data.zone;
+    if (data.guests !== undefined) patch.guests = data.guests;
+    sbPatch("tables", { id }, patch).catch(() => {});
+  }, []);
+
+  const deleteTable = useCallback(async (id: number) => {
+    setTables((prev) => prev.filter((t) => t.id !== id));
+    if (!supabaseAvailable.current) return;
+    sbDelete("tables", { id }).catch(() => {});
+  }, []);
+
+  const clearDemoData = useCallback(async () => {
+    setMenuItems([]);
+    if (!supabaseAvailable.current) return;
+    await sbDelete("menu_items", { restaurant_id: "nido" }).catch(() => {});
+  }, []);
+
   const submitWaiterOrder = useCallback(async (
     tableId: number,
     staffId: string,
@@ -756,6 +839,13 @@ export function useBackofficeState(): BackofficeState {
     addExpense,
     updateInventoryStock,
     saveStaffAvatar,
+    saveStaff,
+    createStaff,
+    deleteStaff,
+    createTable,
+    updateTable,
+    deleteTable,
+    clearDemoData,
     toggleQr,
     regenerateQr,
     notifyWaiter,

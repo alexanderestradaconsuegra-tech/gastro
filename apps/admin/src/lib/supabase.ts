@@ -213,6 +213,19 @@ export async function sbSignIn(
   return data as { access_token: string; user: { email: string } };
 }
 
+export async function sbSignUp(email: string, password: string): Promise<{ ok: boolean; error?: string }> {
+  const res = await fetch(`${HARDCODED_URL}/auth/v1/signup`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "apikey": HARDCODED_ANON },
+    body: JSON.stringify({ email, password }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    return { ok: false, error: (err as Record<string,string>).msg ?? (err as Record<string,string>).error_description ?? "Error al crear usuario" };
+  }
+  return { ok: true };
+}
+
 export async function sbSignOut(): Promise<void> {
   const token = getAuthToken();
   // Best-effort server-side logout (invalidate token)

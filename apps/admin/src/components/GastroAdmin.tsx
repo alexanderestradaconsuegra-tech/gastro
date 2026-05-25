@@ -469,6 +469,10 @@ function ComandaView({ role, staffId, state }: RoleStaffState) {
 function TablesView({ role, staffId, state }: RoleStaffState) {
   const isAdmin = role === "admin";
   const [selectedTable, setSelectedTable] = useState<TableRow | null>(null);
+  const [editingTable, setEditingTable] = useState<TableRow | null>(null);
+  const [creatingTable, setCreatingTable] = useState(false);
+  const [newZone, setNewZone] = useState("Salón");
+  const [newCapacity, setNewCapacity] = useState(4);
   // Admin sees all; camarero sees own tables + occupied unassigned tables (to claim)
   const visible = state.tables.filter(
     (t) => isAdmin || t.waiterId === staffId || (!t.waiterId && t.status !== "Libre")
@@ -479,8 +483,23 @@ function TablesView({ role, staffId, state }: RoleStaffState) {
       <div className="panel">
         <div className="panel-head">
           <h2>{isAdmin ? "Mapa de mesas" : "Mesas"}</h2>
-          <span className="badge">{isAdmin ? `${visible.length} mesas` : `${myCount} mías`}</span>
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <span className="badge">{isAdmin ? `${visible.length} mesas` : `${myCount} mías`}</span>
+            {isAdmin && <button className="btn primary" onClick={() => setCreatingTable(true)}>Nueva mesa</button>}
+          </div>
         </div>
+        {isAdmin && creatingTable && (
+          <div style={{ background: "rgba(255,255,255,.06)", border: "1px solid var(--line)", borderRadius: 18, padding: 14, marginBottom: 14 }}>
+            <div className="form-grid">
+              <div className="field"><label>Zona</label><input className="input" value={newZone} onChange={(e) => setNewZone(e.target.value)} /></div>
+              <div className="field"><label>Capacidad (pax)</label><input className="input" type="number" min={1} max={20} value={newCapacity} onChange={(e) => setNewCapacity(Number(e.target.value))} /></div>
+            </div>
+            <div style={{ display: "flex", gap: 8, marginTop: 10, justifyContent: "flex-end" }}>
+              <button className="btn ghost" onClick={() => setCreatingTable(false)}>Cancelar</button>
+              <button className="btn primary" onClick={() => { void state.createTable(newZone, newCapacity); setCreatingTable(false); }}>Crear mesa</button>
+            </div>
+          </div>
+        )}
         <div className="table-grid">
           {visible.map((t) => {
             const waiter = getStaffById(state.staff, t.waiterId);
@@ -526,6 +545,7 @@ function TablesView({ role, staffId, state }: RoleStaffState) {
                       <button className="btn ghost" onClick={() => setSelectedTable(t)}>Ver ficha</button>
                     </>
                   )}
+                  {isAdmin && <button className="btn ghost" style={{ gridColumn: "1/-1", fontSize: 12 }} onClick={() => setEditingTable(t)}>Editar mesa</button>}
                 </div>
               </div>
             );
@@ -1385,10 +1405,11 @@ function QRView({ state }: { state: BackofficeState }) {
 // ─── Staff ───────────────────────────────────────────────────────────────────
 function StaffView({ state }: { state: BackofficeState }) {
   const [editing, setEditing] = useState<StaffMember | null>(null);
+  const [creating, setCreating] = useState(false);
   return (
     <div className="grid">
       <div className="panel">
-        <div className="panel-head"><h2>Camareros y empleados</h2><span className="badge green">Fotos + trazabilidad</span></div>
+        <div className="panel-head"><h2>Camareros y empleados</h2><button className="btn primary" onClick={() => setCreating(true)}>Nuevo empleado</button></div>
         <div className="three">
           {state.staff.map((s) => (
             <div className="table-card" key={s.id}>
@@ -1427,6 +1448,7 @@ function StaffView({ state }: { state: BackofficeState }) {
         </div>
       </div>
       {editing && <StaffEditor staff={editing} state={state} onClose={() => setEditing(null)} />}
+      {creating && <StaffCreator state={state} onClose={() => setCreating(false)} />}
     </div>
   );
 }
@@ -1486,9 +1508,94 @@ function StaffEditor({ staff, state, onClose }: { staff: StaffMember; state: Bac
             <div className="field"><label>Email</label><input className="input" value={form.email || ""} onChange={(e) => update("email", e.target.value)} /></div>
           </div>
         </div>
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 10, marginTop: 14 }}>
+          <button className="btn danger" onClick={async () => { if(confirm(`¿Eliminar a ${staff.name}?`)) { await state.deleteStaff(staff.id); onClose(); } }}>Eliminar</button>
+          <div style={{ display: "flex", gap: 10 }}>
+            <button className="btn ghost" onClick={onClose}>Cancelar</button>
+            <button className="btn primary" onClick={async () => { await state.saveStaff(form); onClose(); }}>Guardar cambios</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── StaffCreator ─────────────────────────────────────────────────────────────
+function StaffCreator({ state, onClose }: { state: BackofficeState; onClose: () => void }) {
+  const [form, setForm] = useState({ name: "", email: "", role: "camarero" as StaffRole, pin: "", shift: "Tarde" });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const set = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }));
+
+  async function handleCreate() {
+    if (!form.name || !form.email || !form.pin) { setError("Nombre, email y PIN son obligatorios"); return; }
+    if (form.pin.length < 4) { setError("El PIN debe tener al menos 4 caracteres"); return; }
+    setSaving(true); setError("");
+    const res = await state.createStaff(form.name, form.email, form.role, form.pin, form.shift);
+    setSaving(false);
+    if (res.ok) onClose();
+    else setError(res.error ?? "Error al crear empleado");
+  }
+
+  return (
+    <div className="modal-backdrop">
+      <div className="modal">
+        <div className="panel-head">
+          <div><h2>Nuevo empleado</h2></div>
+          <button className="btn ghost" onClick={onClose}>Cerrar</button>
+        </div>
+        <div className="form-grid">
+          <div className="field"><label>Nombre completo</label><input className="input" value={form.name} onChange={(e) => set("name", e.target.value)} /></div>
+          <div className="field"><label>Email (para login)</label><input className="input" type="email" value={form.email} onChange={(e) => set("email", e.target.value)} /></div>
+          <div className="field"><label>PIN (contraseña)</label><input className="input" type="password" value={form.pin} onChange={(e) => set("pin", e.target.value)} placeholder="Mín. 4 caracteres" /></div>
+          <div className="field"><label>Rol</label>
+            <select className="input" value={form.role} onChange={(e) => set("role", e.target.value)}>
+              <option value="camarero">Camarero</option>
+              <option value="cocina">Cocina</option>
+              <option value="caja">Caja</option>
+              <option value="admin">Admin</option>
+            </select>
+          </div>
+          <div className="field"><label>Turno</label>
+            <select className="input" value={form.shift} onChange={(e) => set("shift", e.target.value)}>
+              <option>Mañana</option><option>Tarde</option><option>Noche</option>
+            </select>
+          </div>
+        </div>
+        {error && <p style={{ color: "var(--red2)", marginTop: 10 }}>{error}</p>}
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 14 }}>
           <button className="btn ghost" onClick={onClose}>Cancelar</button>
-          <button className="btn primary" onClick={onClose}>Guardar cambios</button>
+          <button className="btn primary" onClick={() => void handleCreate()} disabled={saving}>
+            {saving ? "Creando…" : "Crear empleado"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── TableEditor ─────────────────────────────────────────────────────────────
+function TableEditor({ table, state, onClose }: { table: TableRow; state: BackofficeState; onClose: () => void }) {
+  const [zone, setZone] = useState(table.zone);
+  const [guests, setGuests] = useState(table.guests);
+  return (
+    <div className="modal-backdrop">
+      <div className="modal" style={{ maxWidth: 400 }}>
+        <div className="panel-head">
+          <div><h2>Mesa {table.id}</h2></div>
+          <button className="btn ghost" onClick={onClose}>Cerrar</button>
+        </div>
+        <div className="form-grid">
+          <div className="field"><label>Zona</label><input className="input" value={zone} onChange={(e) => setZone(e.target.value)} /></div>
+          <div className="field"><label>Capacidad (pax)</label><input className="input" type="number" min={1} max={20} value={guests} onChange={(e) => setGuests(Number(e.target.value))} /></div>
+        </div>
+        <p style={{ color: "var(--muted)", fontSize: 12, margin: "8px 0" }}>Token QR: <code style={{ color: "var(--gold2)" }}>{table.qrToken}</code></p>
+        <div style={{ display: "flex", justifyContent: "space-between", marginTop: 14 }}>
+          <button className="btn danger" onClick={() => { if(confirm(`¿Eliminar Mesa ${table.id}?`)) { void state.deleteTable(table.id); onClose(); } }}>Eliminar</button>
+          <div style={{ display: "flex", gap: 10 }}>
+            <button className="btn ghost" onClick={onClose}>Cancelar</button>
+            <button className="btn primary" onClick={() => { void state.updateTable(table.id, { zone, guests }); onClose(); }}>Guardar</button>
+          </div>
         </div>
       </div>
     </div>
