@@ -14,30 +14,22 @@ const socialProof = [
 const showcase = [
   {
     title: "Mesas QR",
-    gradient: "linear-gradient(145deg,#1a1208,#3d2a0a)",
-    accent: "rgba(200,169,107,.18)",
-    icon: "⬡",
+    image: "https://assets.zyrosite.com/rvH9B7W9kUvvSHwW/chatgpt-image-26-may-2026-08_25_05-NoZTg8ZqjPaIF1rd.png",
     desc: "Clientes viendo la carta digital desde su teléfono, haciendo pedidos y llamando al camarero directamente desde la mesa.",
   },
   {
     title: "Camareros conectados",
-    gradient: "linear-gradient(145deg,#0a1220,#0d2340)",
-    accent: "rgba(100,160,240,.15)",
-    icon: "◎",
+    image: "https://assets.zyrosite.com/rvH9B7W9kUvvSHwW/chatgpt-image-26-may-2026-08_29_05-T0Rd8rgWNQNXOgvt.png",
     desc: "El camarero toma pedidos desde una tablet y todo se envía automáticamente a cocina y caja en segundos.",
   },
   {
     title: "Cocina organizada",
-    gradient: "linear-gradient(145deg,#081a12,#0d3020)",
-    accent: "rgba(52,211,153,.15)",
-    icon: "▣",
+    image: "https://assets.zyrosite.com/rvH9B7W9kUvvSHwW/chatgpt-image-26-may-2026-08_25_20-WyIyg3aQ5mcsj3zs.png",
     desc: "Los cocineros reciben pedidos en pantalla y notifican cuando cada plato está listo para entregar.",
   },
   {
     title: "Autoservicio inteligente",
-    gradient: "linear-gradient(145deg,#14081a,#280d38)",
-    accent: "rgba(168,100,240,.15)",
-    icon: "◈",
+    image: "https://assets.zyrosite.com/rvH9B7W9kUvvSHwW/chatgpt-image-26-may-2026-08_50_45-UDo4hEUTgFuKTcHa.png",
     desc: "Clientes hacen pedidos rápidos desde una pantalla en barra o autoservicio sin hacer filas ni esperar atención.",
   },
 ];
@@ -114,6 +106,24 @@ const flow = [
   ["5", "Administración controla todo",       "Ventas, propinas, caja, cocina y operación conectados desde cualquier dispositivo."],
 ];
 
+const ORDERS = [
+  { id: "ORD-0042", mesa: "Mesa 5", items: "2 hamburguesas · 1 limonada", status: "Preparando", c: "#f0d48d" },
+  { id: "ORD-0041", mesa: "Mesa 2", items: "1 pasta · 2 aguas",           status: "Listo ✓",    c: "#34d399" },
+  { id: "ORD-0040", mesa: "Mesa 7", items: "3 tacos · 1 cerveza",         status: "Entregando",  c: "#60a5fa" },
+  { id: "ORD-0039", mesa: "Mesa 1", items: "1 salmón · 1 vino tinto",     status: "Cobrado",     c: "#6b7280" },
+];
+
+const TABLES = [
+  { n: 1, s: "Libre",   bg: "rgba(255,255,255,.04)", tc: "#6b7280" },
+  { n: 2, s: "Activa",  bg: "rgba(200,169,107,.09)", tc: "#f0d48d" },
+  { n: 3, s: "Libre",   bg: "rgba(255,255,255,.04)", tc: "#6b7280" },
+  { n: 4, s: "Cuenta",  bg: "rgba(52,211,153,.07)",  tc: "#34d399" },
+  { n: 5, s: "Activa",  bg: "rgba(200,169,107,.09)", tc: "#f0d48d" },
+  { n: 6, s: "Libre",   bg: "rgba(255,255,255,.04)", tc: "#6b7280" },
+  { n: 7, s: "Activa",  bg: "rgba(200,169,107,.09)", tc: "#f0d48d" },
+  { n: 8, s: "Libre",   bg: "rgba(255,255,255,.04)", tc: "#6b7280" },
+];
+
 const CSS = `
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 :root{--bg:#060605;--line:rgba(255,255,255,.1);--text:#fff8ed;--muted:#b0a396;--dim:#6a6058;--gold:#c8a96b;--gold2:#f0d48d;--green:#34d399;--shadow:0 28px 90px rgba(0,0,0,.48)}
@@ -123,27 +133,24 @@ a{color:inherit;text-decoration:none}
 .page{overflow:hidden}
 .container{width:min(1160px,calc(100% - 40px));margin:auto}
 
-/* NAV */
-.nav{position:sticky;top:0;z-index:40;background:rgba(6,6,5,.8);backdrop-filter:blur(18px);border-bottom:1px solid var(--line)}
+.nav{position:sticky;top:0;z-index:40;background:rgba(6,6,5,.82);backdrop-filter:blur(18px);border-bottom:1px solid var(--line)}
 .nav-in{height:72px;display:flex;align-items:center;justify-content:space-between;gap:16px}
-.brand{font-size:28px;letter-spacing:-.06em;color:#fff;font-weight:800;line-height:1}
+.brand{font-size:27px;letter-spacing:-.06em;color:#fff;font-weight:800;line-height:1}
 .brand small{display:block;font-size:9px;letter-spacing:.22em;color:var(--muted);margin-top:4px;font-weight:500}
 .nav-links{display:flex;align-items:center;gap:22px;color:var(--muted);font-weight:500;font-size:14px}
 .nav-links a:not(.btn):hover{color:var(--text)}
 
-/* BUTTONS */
 .btn{border:0;border-radius:14px;padding:12px 20px;font-weight:600;font-size:14px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:8px;transition:.2s ease}
 .btn.primary{background:linear-gradient(135deg,var(--gold),var(--gold2));color:#160f02;box-shadow:0 12px 32px rgba(200,169,107,.2)}
-.btn.primary:hover{box-shadow:0 16px 40px rgba(200,169,107,.32);transform:translateY(-1px)}
+.btn.primary:hover{box-shadow:0 16px 44px rgba(200,169,107,.34);transform:translateY(-1px)}
 .btn.ghost{background:rgba(255,255,255,.07);border:1px solid var(--line);color:var(--text)}
 .btn.ghost:hover{background:rgba(255,255,255,.11)}
 
-/* HERO */
-.hero{position:relative;padding:88px 0 56px}
-.hero-grid{display:grid;grid-template-columns:1.1fr .9fr;gap:40px;align-items:center}
+.hero{position:relative;padding:88px 0 52px}
+.hero-grid{display:grid;grid-template-columns:1fr 1fr;gap:48px;align-items:center}
 .eyebrow{color:var(--gold2);font-weight:600;letter-spacing:.12em;font-size:11px;text-transform:uppercase}
-.hero h1{font-size:clamp(52px,7vw,88px);font-weight:700;line-height:.88;letter-spacing:-.06em;margin:14px 0 18px;max-width:800px;color:#fff}
-.hero p{color:var(--muted);font-size:17px;line-height:1.75;max-width:560px}
+.hero h1{font-size:clamp(48px,6.5vw,84px);font-weight:700;line-height:.88;letter-spacing:-.06em;margin:14px 0 18px;color:#fff}
+.hero p{color:var(--muted);font-size:17px;line-height:1.75;max-width:520px}
 .cta-row{display:flex;gap:12px;flex-wrap:wrap;margin-top:26px}
 .trust{display:flex;gap:18px;flex-wrap:wrap;margin-top:22px;color:var(--dim);font-size:13px;font-weight:500}
 .trust span{display:flex;gap:7px;align-items:center}
@@ -152,71 +159,88 @@ a{color:inherit;text-decoration:none}
 .logo-pill{padding:8px 14px;border-radius:999px;background:rgba(255,255,255,.05);border:1px solid var(--line);color:#c8bba8;font-size:12px;font-weight:500}
 .metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:22px}
 .metric{padding:16px;border-radius:18px;background:rgba(255,255,255,.04);border:1px solid var(--line)}
-.metric b{display:block;font-size:30px;font-weight:700;color:var(--gold2);line-height:1}
+.metric b{display:block;font-size:28px;font-weight:700;color:var(--gold2);line-height:1}
 .metric span{display:block;color:var(--muted);margin-top:6px;line-height:1.4;font-size:13px}
 
-/* DEVICE MOCK */
-.device{position:relative;border-radius:32px;padding:14px;background:linear-gradient(145deg,rgba(255,255,255,.08),rgba(255,255,255,.02));border:1px solid var(--line);box-shadow:var(--shadow)}
-.device-screen{position:relative;min-height:680px;border-radius:24px;background:linear-gradient(160deg,#0f0d08,#1c1508,#0a0f1a);overflow:hidden;padding:18px;display:flex;flex-direction:column;justify-content:space-between}
-.device-screen::before{content:'';position:absolute;inset:0;background:radial-gradient(circle at 70% 20%,rgba(200,169,107,.12),transparent 45%),radial-gradient(circle at 20% 80%,rgba(52,211,153,.06),transparent 40%);pointer-events:none}
-.screen-top{display:flex;justify-content:space-between;align-items:center;position:relative;z-index:1}
-.pill{border:1px solid rgba(255,255,255,.18);background:rgba(0,0,0,.4);border-radius:999px;padding:8px 14px;font-size:12px;font-weight:600;backdrop-filter:blur(8px)}
-.live-badge{position:absolute;top:18px;right:18px;background:rgba(52,211,153,.12);border:1px solid rgba(52,211,153,.28);color:#8ff0c5;padding:8px 14px;border-radius:999px;font-size:12px;font-weight:600;backdrop-filter:blur(10px);animation:pulse 2.4s infinite;z-index:1}
-.floating-order,.floating-kitchen{position:absolute;border-radius:16px;padding:12px 14px;backdrop-filter:blur(14px);z-index:2}
-.floating-order{left:18px;top:86px;background:rgba(0,0,0,.65);border:1px solid rgba(255,255,255,.1)}
-.floating-kitchen{right:18px;bottom:180px;background:rgba(200,169,107,.1);border:1px solid rgba(200,169,107,.2)}
-.floating-order b,.floating-kitchen b{font-size:13px;font-weight:600}
-.floating-kitchen b{color:var(--gold2)}
-.floating-order span,.floating-kitchen span{display:block;color:var(--muted);font-size:12px;margin-top:3px}
-.screen-card{border-radius:24px;background:rgba(6,6,6,.55);border:1px solid rgba(255,255,255,.1);backdrop-filter:blur(24px);padding:18px;position:relative;z-index:1}
-.screen-title{font-size:clamp(32px,4vw,50px);font-weight:700;letter-spacing:-.05em;margin:10px 0 8px;line-height:.92}
-.screen-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:14px}
-.mini{position:relative;border-radius:14px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);padding:12px;overflow:hidden}
-.mini b{display:flex;align-items:center;gap:7px;font-size:13px;font-weight:600}
-.mini small{display:block;color:var(--muted);margin-top:6px;line-height:1.35;font-size:12px}
-.mini-icon{width:22px;height:22px;border-radius:8px;background:rgba(240,212,141,.12);display:grid;place-items:center;font-size:10px;font-weight:700;color:var(--gold2)}
+/* ── TABLET ─────────────────────────────────────────────── */
+.tablet-outer{display:flex;justify-content:center;align-items:flex-start;perspective:1600px}
+.tablet-frame{
+  position:relative;width:440px;
+  border-radius:38px;
+  background:linear-gradient(165deg,#56565a 0%,#28282c 40%,#1c1c1e 100%);
+  padding:18px 13px 22px;
+  box-shadow:
+    0 0 0 1px rgba(255,255,255,.1),
+    inset 0 1px 0 rgba(255,255,255,.16),
+    inset 0 -1px 0 rgba(0,0,0,.5),
+    inset 1px 0 0 rgba(255,255,255,.07),
+    inset -1px 0 0 rgba(0,0,0,.4),
+    0 60px 140px rgba(0,0,0,.72),
+    0 24px 48px rgba(0,0,0,.38);
+  transform:rotateY(-7deg) rotateX(3deg);
+}
+.tablet-camera{width:9px;height:9px;border-radius:50%;background:#0a0a0c;box-shadow:0 0 0 1.5px rgba(255,255,255,.08),inset 0 0 4px rgba(80,160,255,.35);margin:0 auto 10px}
+.tablet-home{width:72px;height:4px;border-radius:4px;background:rgba(255,255,255,.16);margin:10px auto 0}
+.tablet-screen{border-radius:24px;background:#08080f;overflow:hidden;border:1px solid rgba(0,0,0,.7);box-shadow:inset 0 0 60px rgba(200,169,107,.03)}
+.tablet-btn-right{position:absolute;right:-3px;top:110px;width:3px;height:52px;border-radius:0 3px 3px 0;background:linear-gradient(180deg,#3a3a3c,#2a2a2c);box-shadow:2px 0 4px rgba(0,0,0,.4)}
+.tablet-btn-vol1{position:absolute;left:-3px;top:100px;width:3px;height:38px;border-radius:3px 0 0 3px;background:linear-gradient(180deg,#3a3a3c,#2a2a2c);box-shadow:-2px 0 4px rgba(0,0,0,.4)}
+.tablet-btn-vol2{position:absolute;left:-3px;top:148px;width:3px;height:38px;border-radius:3px 0 0 3px;background:linear-gradient(180deg,#3a3a3c,#2a2a2c);box-shadow:-2px 0 4px rgba(0,0,0,.4)}
+.tab-topbar{background:linear-gradient(135deg,#0d0c14,#130f07);padding:14px 16px 12px;border-bottom:1px solid rgba(255,255,255,.06)}
+.tab-topbar-row{display:flex;justify-content:space-between;align-items:center}
+.tab-brand{font-size:15px;font-weight:700;letter-spacing:-.04em}
+.tab-live{font-size:10px;color:#8ff0c5;background:rgba(52,211,153,.12);border:1px solid rgba(52,211,153,.22);border-radius:999px;padding:4px 9px;font-weight:600;animation:pulse 2.4s infinite}
+.tab-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-top:10px}
+.tab-stat{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.06);border-radius:10px;padding:8px 10px}
+.tab-stat b{display:block;font-size:15px;font-weight:700;color:#f0d48d;line-height:1}
+.tab-stat span{display:block;font-size:10px;color:#6a6058;margin-top:3px}
+.tab-section{padding:12px 14px}
+.tab-label{font-size:10px;color:#c8a96b;letter-spacing:.1em;text-transform:uppercase;font-weight:600;margin-bottom:8px}
+.tab-order{display:flex;justify-content:space-between;align-items:center;padding:9px 11px;border-radius:10px;background:rgba(255,255,255,.034);border:1px solid rgba(255,255,255,.055);margin-bottom:5px}
+.tab-order-info b{font-size:12px;font-weight:600;display:block}
+.tab-order-info span{font-size:10px;color:#6a6058;display:block;margin-top:2px}
+.tab-badge{font-size:10px;border-radius:999px;padding:3px 8px;font-weight:600;white-space:nowrap}
+.tab-tables{display:grid;grid-template-columns:repeat(4,1fr);gap:5px}
+.tab-table{border:1px solid rgba(255,255,255,.06);border-radius:9px;padding:7px 4px;text-align:center}
+.tab-table b{display:block;font-size:13px;font-weight:700;line-height:1}
+.tab-table span{display:block;font-size:9px;margin-top:3px}
+.tab-footer{padding:10px 14px;border-top:1px solid rgba(255,255,255,.05);display:flex;gap:6px}
+.tab-footbtn{flex:1;border-radius:10px;padding:9px 6px;font-size:11px;font-weight:600;text-align:center;cursor:pointer;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.04);color:var(--muted)}
+.tab-footbtn.active{background:linear-gradient(135deg,rgba(200,169,107,.18),rgba(255,255,255,.04));border-color:rgba(240,212,141,.24);color:var(--gold2)}
 
 /* STATS STRIP */
 .stats-shell{margin-top:32px}
 .stats-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
 .stats{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;overflow-x:auto;padding-bottom:4px;scrollbar-width:none}
 .stats::-webkit-scrollbar{display:none}
-.stat{border-radius:18px;background:linear-gradient(145deg,rgba(255,255,255,.055),rgba(255,255,255,.02));border:1px solid var(--line);padding:16px;min-width:170px;backdrop-filter:blur(10px)}
+.stat{border-radius:18px;background:linear-gradient(145deg,rgba(255,255,255,.055),rgba(255,255,255,.02));border:1px solid var(--line);padding:16px;min-width:160px}
 .stat b{font-size:22px;color:var(--gold2);display:block;font-weight:700;line-height:1}
 .stat span{display:block;color:var(--muted);font-size:12px;margin-top:6px;line-height:1.4}
 
-/* SECTIONS */
 .section{padding:72px 0}
 .section-head{display:flex;justify-content:space-between;align-items:flex-end;gap:24px;margin-bottom:28px}
-.section h2{font-size:clamp(36px,5vw,60px);font-weight:700;line-height:.92;letter-spacing:-.05em;margin:0}
+.section h2{font-size:clamp(36px,5vw,58px);font-weight:700;line-height:.92;letter-spacing:-.05em;margin:0}
 .section-head p{color:var(--muted);max-width:440px;line-height:1.7;font-size:15px}
 
-/* MODULE CARDS */
 .modules{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
 .card{border-radius:22px;background:linear-gradient(145deg,rgba(255,255,255,.06),rgba(255,255,255,.02));border:1px solid var(--line);padding:22px;transition:.2s ease}
 .card:hover{transform:translateY(-2px);border-color:rgba(240,212,141,.18)}
 .card .label{font-size:10px;color:var(--gold2);letter-spacing:.14em;text-transform:uppercase;font-weight:600}
-.card h3{font-size:20px;margin:10px 0 8px;font-weight:600;letter-spacing:-.03em}
+.card h3{font-size:19px;margin:10px 0 8px;font-weight:600;letter-spacing:-.03em}
 .card p{color:var(--muted);line-height:1.6;font-size:14px;margin:0}
 
-/* SHOWCASE */
 .showcase-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px}
-.showcase-card{position:relative;overflow:hidden;border-radius:28px;min-height:460px;border:1px solid var(--line);box-shadow:var(--shadow)}
-.showcase-bg{position:absolute;inset:0;display:flex;align-items:center;justify-content:center}
-.showcase-icon{font-size:160px;opacity:.07;line-height:1;user-select:none}
-.showcase-overlay{position:absolute;inset:0;background:linear-gradient(180deg,transparent 20%,rgba(0,0,0,.88));padding:28px;display:flex;flex-direction:column;justify-content:flex-end}
-.showcase-overlay h3{font-size:clamp(28px,3.5vw,42px);font-weight:700;line-height:.95;margin:0 0 10px;letter-spacing:-.04em}
+.showcase-card{position:relative;overflow:hidden;border-radius:28px;min-height:460px;border:1px solid var(--line);box-shadow:var(--shadow);background:#0d0d0d}
+.showcase-card img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;filter:brightness(.68);transform:scale(1.03);transition:.5s ease}
+.showcase-card:hover img{transform:scale(1.07);filter:brightness(.76)}
+.showcase-overlay{position:absolute;inset:0;background:linear-gradient(180deg,transparent 25%,rgba(0,0,0,.9));padding:28px;display:flex;flex-direction:column;justify-content:flex-end}
+.showcase-overlay h3{font-size:clamp(26px,3.2vw,40px);font-weight:700;line-height:.95;margin:0 0 10px;letter-spacing:-.04em}
 .showcase-overlay p{color:#cdc2b0;line-height:1.65;max-width:400px;font-size:14px;margin:0}
 
-/* SPLIT */
 .split{display:grid;grid-template-columns:.95fr 1.05fr;gap:16px;align-items:start}
-
-/* BENEFITS */
 .benefits{display:grid;gap:8px}
 .benefit{display:flex;gap:12px;align-items:flex-start;border-radius:16px;background:rgba(255,255,255,.04);border:1px solid var(--line);padding:14px;color:#e2d8cb;line-height:1.55;font-size:15px}
 .check{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;background:rgba(52,211,153,.12);color:var(--green);font-weight:700;flex:0 0 auto;font-size:13px}
 
-/* DEMO PANEL */
 .demo-panel{border-radius:28px;background:linear-gradient(145deg,rgba(255,255,255,.06),rgba(255,255,255,.02));border:1px solid var(--line);padding:28px;box-shadow:var(--shadow)}
 .flow-track{display:grid;gap:12px;margin-top:22px}
 .flow-card{display:grid;grid-template-columns:50px 1fr;gap:16px;align-items:flex-start;padding:0 0 16px;border-bottom:1px solid rgba(255,255,255,.06)}
@@ -235,16 +259,13 @@ a{color:inherit;text-decoration:none}
 .demo-option small{display:block;color:var(--muted);line-height:1.5;margin-top:4px;font-size:13px}
 .demo-safe{margin-top:14px;border-radius:14px;background:rgba(52,211,153,.06);border:1px solid rgba(52,211,153,.12);padding:12px 14px;color:#b8f5d8;font-size:13px;line-height:1.6;position:relative;z-index:1}
 
-/* PLANS */
 .plans{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
-.plan{position:relative}
 .plan.highlight{border-color:rgba(240,212,141,.32);background:linear-gradient(145deg,rgba(200,169,107,.1),rgba(255,255,255,.03))}
 .tag{position:absolute;top:14px;right:14px;border-radius:999px;background:rgba(52,211,153,.12);color:var(--green);font-size:11px;padding:6px 10px;font-weight:600;letter-spacing:.04em}
-.price{font-size:32px;font-weight:700;color:var(--gold2);margin:12px 0}
+.price{font-size:30px;font-weight:700;color:var(--gold2);margin:12px 0}
 .features{display:grid;gap:8px;margin:16px 0}
 .features div{color:var(--muted);font-size:14px;line-height:1.4}
 
-/* FAQ */
 .faq-accordion{display:grid;gap:10px}
 .faq-item{border-radius:18px;border:1px solid var(--line);background:rgba(255,255,255,.03);overflow:hidden}
 .faq-btn{width:100%;background:none;border:0;color:var(--text);display:flex;justify-content:space-between;align-items:center;padding:20px 22px;font-size:16px;font-weight:600;cursor:pointer;text-align:left;gap:16px}
@@ -252,33 +273,30 @@ a{color:inherit;text-decoration:none}
 .faq-answer{padding:0 22px 20px;color:var(--muted);line-height:1.75;font-size:14px}
 .faq-icon{font-size:22px;color:var(--gold2);flex:0 0 auto;line-height:1}
 
-/* FINAL CTA */
 .final{padding:80px 0 96px;text-align:center}
 .final-box{position:relative;overflow:hidden;border-radius:36px;background:radial-gradient(circle at 50% 0,rgba(200,169,107,.2),transparent 44%),linear-gradient(145deg,rgba(255,255,255,.07),rgba(255,255,255,.02));border:1px solid var(--line);padding:64px 24px;box-shadow:var(--shadow)}
 .final-box::before{content:'';position:absolute;inset:0;background:radial-gradient(circle at top right,rgba(240,212,141,.1),transparent 32%);pointer-events:none}
 .final-box h2{font-size:clamp(44px,6.5vw,96px);font-weight:700;line-height:.86;letter-spacing:-.07em;margin:12px auto 16px;position:relative;z-index:1}
 .final-box p{color:var(--muted);max-width:640px;margin:0 auto 28px;line-height:1.8;position:relative;z-index:1}
 
-/* FOOTER */
 .footer{border-top:1px solid var(--line);padding:26px 0;color:var(--dim);font-size:13px}
 .footer-in{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap}
 
-@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.85;transform:scale(1.025)}}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.82;transform:scale(1.03)}}
 
-@media(max-width:920px){
+@media(max-width:960px){
   .nav-links a:not(.btn){display:none}
   .hero{padding:52px 0 32px}
   .hero-grid,.split{grid-template-columns:1fr}
-  .hero h1{font-size:clamp(40px,9vw,64px)}
+  .tablet-outer{display:none}
+  .hero h1{font-size:clamp(40px,9vw,62px)}
   .hero p{font-size:15px}
-  .device{display:none}
   .metrics,.modules,.plans,.showcase-grid{grid-template-columns:1fr}
   .stats{display:flex;overflow-x:auto;padding-bottom:8px}
   .stat{min-width:160px}
   .section{padding:52px 0}
   .section-head{display:block}
   .showcase-card{min-height:320px}
-  .brand{font-size:24px}
   .nav-in{height:64px}
 }
 `;
@@ -308,6 +326,7 @@ export default function Landing({ n8nBase, adminUrl }: { n8nBase?: string; admin
 
       <header id="top" className="hero">
         <div className="container hero-grid">
+          {/* LEFT */}
           <div>
             <div className="eyebrow">Simple · Rápido · Todo conectado</div>
             <h1>El caos del restaurante termina con HOLU.</h1>
@@ -325,26 +344,60 @@ export default function Landing({ n8nBase, adminUrl }: { n8nBase?: string; admin
             <div className="metrics">{metrics.map(([value, label]) => <div className="metric" key={value}><b>{value}</b><span>{label}</span></div>)}</div>
           </div>
 
-          <div className="device">
-            <div className="device-screen">
-              <div className="live-badge">● Restaurante en vivo</div>
-              <div className="floating-order"><b>Nueva orden · Mesa 7</b><span>2 hamburguesas · 1 limonada</span></div>
-              <div className="floating-kitchen"><b>Cocina notificó</b><span>Pedido listo para entregar</span></div>
-              <div className="screen-top">
-                <div className="brand" style={{ fontSize: 20 }}>HOLU<small>MESA DIGITAL</small></div>
-                <span className="pill">Mesa 7</span>
-              </div>
-              <div className="screen-card">
-                <div className="eyebrow">Mesa conectada · Salón</div>
-                <h3 className="screen-title">Todo conectado desde la mesa.</h3>
-                <p style={{ color: "var(--muted)", lineHeight: 1.65, fontSize: 14, margin: "8px 0 0" }}>El cliente escanea el QR y entra a una experiencia moderna donde puede pedir, llamar al camarero, pagar y seguir su pedido.</p>
-                <div className="screen-actions">
-                  <div className="mini"><b><span className="mini-icon">●</span>Carta</b><small>Platos, fotos y precios claros.</small></div>
-                  <div className="mini"><b><span className="mini-icon">◌</span>Camarero</b><small>Mesa solicita atención.</small></div>
-                  <div className="mini"><b><span className="mini-icon">✓</span>Cocina</b><small>Pedido listo para servir.</small></div>
-                  <div className="mini"><b><span className="mini-icon">▣</span>Cuenta</b><small>Total, propina y cobro.</small></div>
+          {/* TABLET */}
+          <div className="tablet-outer">
+            <div className="tablet-frame">
+              <div className="tablet-btn-right" />
+              <div className="tablet-btn-vol1" />
+              <div className="tablet-btn-vol2" />
+              <div className="tablet-camera" />
+              <div className="tablet-screen">
+                {/* Top bar */}
+                <div className="tab-topbar">
+                  <div className="tab-topbar-row">
+                    <span className="tab-brand">HOLU Admin</span>
+                    <span className="tab-live">● En vivo</span>
+                  </div>
+                  <div className="tab-stats">
+                    <div className="tab-stat"><b>$184.500</b><span>Ventas hoy</span></div>
+                    <div className="tab-stat"><b>12</b><span>Pedidos</span></div>
+                    <div className="tab-stat"><b>4</b><span>Mesas activas</span></div>
+                  </div>
+                </div>
+                {/* Orders */}
+                <div className="tab-section">
+                  <div className="tab-label">Pedidos activos</div>
+                  {ORDERS.map(o => (
+                    <div className="tab-order" key={o.id}>
+                      <div className="tab-order-info">
+                        <b>{o.id} · {o.mesa}</b>
+                        <span>{o.items}</span>
+                      </div>
+                      <span className="tab-badge" style={{ color: o.c, background: `${o.c}18`, border: `1px solid ${o.c}30` }}>{o.status}</span>
+                    </div>
+                  ))}
+                </div>
+                {/* Tables */}
+                <div className="tab-section" style={{ paddingTop: 0 }}>
+                  <div className="tab-label">Mesas</div>
+                  <div className="tab-tables">
+                    {TABLES.map(t => (
+                      <div className="tab-table" key={t.n} style={{ background: t.bg }}>
+                        <b>M{t.n}</b>
+                        <span style={{ color: t.tc }}>{t.s}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                {/* Footer nav */}
+                <div className="tab-footer">
+                  <div className="tab-footbtn active">Pedidos</div>
+                  <div className="tab-footbtn">Mesas</div>
+                  <div className="tab-footbtn">Cocina</div>
+                  <div className="tab-footbtn">Caja</div>
                 </div>
               </div>
+              <div className="tablet-home" />
             </div>
           </div>
         </div>
@@ -378,10 +431,9 @@ export default function Landing({ n8nBase, adminUrl }: { n8nBase?: string; admin
           </div>
           <div className="showcase-grid">
             {showcase.map(item => (
-              <article className="showcase-card" key={item.title} style={{ background: item.gradient }}>
-                <div className="showcase-bg" style={{ background: item.accent }}>
-                  <span className="showcase-icon">{item.icon}</span>
-                </div>
+              <article className="showcase-card" key={item.title}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={item.image} alt={item.title} />
                 <div className="showcase-overlay">
                   <div className="eyebrow">Experiencia HOLU</div>
                   <h3>{item.title}</h3>
@@ -406,7 +458,7 @@ export default function Landing({ n8nBase, adminUrl }: { n8nBase?: string; admin
         </div>
       </section>
 
-      <section className="section">
+      <section id="demo" className="section">
         <div className="container split">
           <div className="demo-panel">
             <div className="eyebrow">Flujo real</div>
@@ -422,16 +474,16 @@ export default function Landing({ n8nBase, adminUrl }: { n8nBase?: string; admin
           </div>
 
           <div className="demo-card-pro">
-            <span className="label">Demo sin registro</span>
-            <h3 style={{ fontSize: "clamp(24px,3vw,32px)", lineHeight: 1.05, letterSpacing: "-.04em", margin: "12px 0 10px", fontWeight: 700 }}>Pruébalo como si fuera tu restaurante.</h3>
-            <p style={{ color: "var(--muted)", fontSize: 14, lineHeight: 1.7, margin: 0 }}>La demo está separada de producción, usa datos temporales y se reinicia automáticamente. Puedes tocar, mover pedidos y explorar sin ensuciar la base real.</p>
+            <span className="label">Acceso instantáneo</span>
+            <h3 style={{ fontSize: "clamp(24px,3vw,32px)", lineHeight: 1.05, letterSpacing: "-.04em", margin: "12px 0 10px", fontWeight: 700 }}>Elige cómo quieres probar HOLU.</h3>
+            <p style={{ color: "var(--muted)", fontSize: 14, lineHeight: 1.7, margin: 0 }}>La demo está lista para usar desde cualquier dispositivo. No necesitas tarjeta, instalación ni crear usuario.</p>
             <div className="demo-options">
-              <a className="demo-option primary-demo" href="/demo"><div className="demo-badge">DEMO</div><div><strong>Entrar a demo restaurante</strong><small>Vista completa con mesas, cocina, caja y administración.</small></div></a>
-              <a className="demo-option" href="/demo/mesa/7"><div className="demo-badge">QR</div><div><strong>Mesa QR</strong><small>Vive la experiencia del cliente.</small></div></a>
-              <a className="demo-option" href="/demo/cocina"><div className="demo-badge">KDS</div><div><strong>Cocina</strong><small>Pedidos y estados en vivo.</small></div></a>
-              <a className="demo-option" href="/demo/caja"><div className="demo-badge">POS</div><div><strong>Caja</strong><small>Cobro, propina y cierre.</small></div></a>
+              <a className="demo-option primary-demo" href="/demo"><div className="demo-badge">DEMO</div><div><strong>Demo completa</strong><small>Todo el restaurante funcionando.</small></div></a>
+              <a className="demo-option" href="/demo/mesa/7"><div className="demo-badge">QR</div><div><strong>Mesa QR</strong><small>Cliente escaneando y pidiendo.</small></div></a>
+              <a className="demo-option" href="/demo/cocina"><div className="demo-badge">KDS</div><div><strong>Cocina</strong><small>Pedidos organizados en vivo.</small></div></a>
+              <a className="demo-option" href="/demo/caja"><div className="demo-badge">POS</div><div><strong>Caja</strong><small>Pagos, propinas y boletas.</small></div></a>
             </div>
-            <div className="demo-safe">Tu información no se guarda hasta crear un restaurante real.</div>
+            <div className="demo-safe">La demo usa datos temporales y se reinicia automáticamente.</div>
           </div>
         </div>
       </section>
@@ -444,7 +496,7 @@ export default function Landing({ n8nBase, adminUrl }: { n8nBase?: string; admin
           </div>
           <div className="plans">
             {plans.map(plan => (
-              <article className={`card plan ${plan.highlight ? "highlight" : ""}`} key={plan.name}>
+              <article className={`card plan ${plan.highlight ? "highlight" : ""}`} key={plan.name} style={{ position: "relative" }}>
                 {plan.highlight && <span className="tag">Recomendado</span>}
                 <h3>{plan.name}</h3>
                 <div className="price">{plan.price}<small style={{ fontSize: 13, color: "var(--muted)", fontWeight: 500 }}> / mes</small></div>
@@ -453,28 +505,6 @@ export default function Landing({ n8nBase, adminUrl }: { n8nBase?: string; admin
                 <a className={plan.highlight ? "btn primary" : "btn ghost"} href="#demo" style={{ width: "100%", marginTop: 4 }}>Comenzar ahora</a>
               </article>
             ))}
-          </div>
-        </div>
-      </section>
-
-      <section id="demo" className="section">
-        <div className="container split">
-          <div>
-            <div className="eyebrow">Prueba HOLU ahora</div>
-            <h2>Entra a una demo real sin registrarte.</h2>
-            <p style={{ color: "var(--muted)", lineHeight: 1.75, fontSize: 15 }}>Prueba mesas QR, cocina, camareros, caja y autoservicio con un restaurante demo completamente funcional. Sin tarjetas, sin instalación y sin crear cuenta.</p>
-          </div>
-          <div className="demo-card-pro">
-            <span className="label">Acceso instantáneo</span>
-            <h3 style={{ fontSize: "clamp(24px,3vw,32px)", lineHeight: 1.05, letterSpacing: "-.04em", margin: "12px 0 10px", fontWeight: 700 }}>Elige cómo quieres probar HOLU.</h3>
-            <p style={{ color: "var(--muted)", fontSize: 14, lineHeight: 1.7, margin: 0 }}>La demo está lista para usar desde cualquier dispositivo. No necesitas tarjeta, instalación ni crear usuario.</p>
-            <div className="demo-options">
-              <a className="demo-option primary-demo" href="/demo"><div className="demo-badge">DEMO</div><div><strong>Demo completa</strong><small>Todo el restaurante funcionando.</small></div></a>
-              <a className="demo-option" href="/demo/mesa/7"><div className="demo-badge">QR</div><div><strong>Mesa QR</strong><small>Cliente escaneando y pidiendo.</small></div></a>
-              <a className="demo-option" href="/demo/cocina"><div className="demo-badge">KDS</div><div><strong>Cocina</strong><small>Pedidos organizados en vivo.</small></div></a>
-              <a className="demo-option" href="/demo/caja"><div className="demo-badge">POS</div><div><strong>Caja</strong><small>Pagos, propinas y boletas.</small></div></a>
-            </div>
-            <div className="demo-safe">La demo usa datos temporales y se reinicia automáticamente.</div>
           </div>
         </div>
       </section>
