@@ -99,11 +99,10 @@ const faqs = [
 ];
 
 const flow = [
-  ["1", "Entrar a demo instantánea",          "El restaurante demo ya viene configurado para probar HOLU sin registro."],
-  ["2", "Cliente escanea QR",                 "El cliente entra automáticamente a la experiencia de su mesa."],
-  ["3", "Cliente pide o llama al camarero",   "Los pedidos, llamados y solicitudes llegan al instante."],
-  ["4", "Cocina y equipo reciben en vivo",    "La cocina recibe pedidos organizados automáticamente y actualiza el estado del plato en segundos."],
-  ["5", "Administración controla todo",       "Ventas, propinas, caja, cocina y operación conectados desde cualquier dispositivo."],
+  ["1", "Cliente escanea QR",                 "El cliente entra automáticamente a la experiencia de su mesa."],
+  ["2", "Cliente pide o llama al camarero",   "Los pedidos, llamados y solicitudes llegan al instante."],
+  ["3", "Cocina y equipo reciben en vivo",    "La cocina recibe pedidos organizados automáticamente y actualiza el estado del plato en segundos."],
+  ["4", "Administración controla todo",       "Ventas, propinas, caja, cocina y operación conectados desde cualquier dispositivo."],
 ];
 
 const ORDERS = [
@@ -313,7 +312,7 @@ export default function Landing({ n8nBase, adminUrl }: { n8nBase?: string; admin
         <div className="container nav-in">
           <a href="#top" className="brand">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="https://assets.zyrosite.com/rvH9B7W9kUvvSHwW/holu-logo-cIEzv6scenVM9k3O.png" alt="HOLU" style={{ height: 40, display: "block" }} />
+            <img src="https://assets.zyrosite.com/rvH9B7W9kUvvSHwW/holu-logo-cIEzv6scenVM9k3O.png" alt="HOLU" style={{ height: 56, display: "block" }} />
           </a>
           <div className="nav-links">
             <a href="#modulos">Módulos</a>
@@ -479,10 +478,10 @@ export default function Landing({ n8nBase, adminUrl }: { n8nBase?: string; admin
             <h3 style={{ fontSize: "clamp(24px,3vw,32px)", lineHeight: 1.05, letterSpacing: "-.04em", margin: "12px 0 10px", fontWeight: 700 }}>Elige cómo quieres probar HOLU.</h3>
             <p style={{ color: "var(--muted)", fontSize: 14, lineHeight: 1.7, margin: 0 }}>La demo está lista para usar desde cualquier dispositivo. No necesitas tarjeta, instalación ni crear usuario.</p>
             <div className="demo-options">
-              <a className="demo-option primary-demo" href="/demo"><div className="demo-badge">DEMO</div><div><strong>Demo completa</strong><small>Todo el restaurante funcionando.</small></div></a>
-              <a className="demo-option" href="/demo/mesa/7"><div className="demo-badge">QR</div><div><strong>Mesa QR</strong><small>Cliente escaneando y pidiendo.</small></div></a>
-              <a className="demo-option" href="/demo/cocina"><div className="demo-badge">KDS</div><div><strong>Cocina</strong><small>Pedidos organizados en vivo.</small></div></a>
-              <a className="demo-option" href="/demo/caja"><div className="demo-badge">POS</div><div><strong>Caja</strong><small>Pagos, propinas y boletas.</small></div></a>
+              <a className="demo-option primary-demo" href="/demo"><div className="demo-badge">🏠</div><div><strong>Demo completa</strong><small>Todo el restaurante funcionando.</small></div></a>
+              <a className="demo-option" href="/demo/mesa/7"><div className="demo-badge">📱</div><div><strong>Mesa QR</strong><small>Cliente escaneando y pidiendo.</small></div></a>
+              <a className="demo-option" href="/demo/cocina"><div className="demo-badge">🍳</div><div><strong>Cocina</strong><small>Pedidos organizados en vivo.</small></div></a>
+              <a className="demo-option" href="/demo/caja"><div className="demo-badge">💳</div><div><strong>Caja</strong><small>Pagos, propinas y boletas.</small></div></a>
             </div>
             <div className="demo-safe">La demo usa datos temporales y se reinicia automáticamente.</div>
           </div>

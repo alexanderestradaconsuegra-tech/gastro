@@ -4,7 +4,7 @@ WORKDIR /app
 
 RUN apk add --no-cache libc6-compat git
 
-ARG CACHEBUST=6
+ARG CACHEBUST=7
 RUN echo "cachebust=$CACHEBUST"
 
 RUN git clone --depth=1 --branch claude/integrate-systems-n8n-J1yuM \
