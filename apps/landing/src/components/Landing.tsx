@@ -29,7 +29,7 @@ const showcase = [
   },
   {
     title: "Autoservicio inteligente",
-    image: "https://assets.zyrosite.com/rvH9B7W9kUvvSHwW/chatgpt-image-26-may-2026-08_50_45-UDo4hEUTgFuKTcHa.png",
+    image: "https://assets.zyrosite.com/rvH9B7W9kUvvSHwW/chatgpt-image-26-may-2026-16_54_36-4RwvXLTvZr1xrvQL.png",
     desc: "Clientes hacen pedidos rápidos desde una pantalla en barra o autoservicio sin hacer filas ni esperar atención.",
   },
 ];

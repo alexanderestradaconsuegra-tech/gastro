@@ -1,13 +1,20 @@
 import type { Metadata } from "next";
 import "./globals.css";
 
+const FAVICON = "https://assets.zyrosite.com/rvH9B7W9kUvvSHwW/chatgpt-image-26-may-2026-16_54_36-4RwvXLTvZr1xrvQL.png";
+
 export const metadata: Metadata = {
-  title: "Gastro Admin",
-  description: "Sistema de administración de restaurante",
+  title: "HOLU Admin — Panel de Restaurante",
+  description: "Panel de administración HOLU. Gestiona ventas, camareros, cocina, caja, carta y pedidos en tiempo real.",
+  robots: "noindex",
+  icons: {
+    icon: FAVICON,
+    apple: FAVICON,
+    shortcut: FAVICON,
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
-  // Prefer NEXT_PUBLIC_ (build-time baked) then fall back to bare names (runtime-only in EasyPanel)
   const supabaseUrl =
     process.env.NEXT_PUBLIC_SUPABASE_URL ||
     process.env.SUPABASE_URL ||
@@ -22,8 +29,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="es">
       <body>
-        {/* Inject Supabase config at runtime so the client bundle can use it even when
-            NEXT_PUBLIC_* vars were not available at Docker build time */}
         <script dangerouslySetInnerHTML={{ __html: inlineScript }} />
         {children}
       </body>

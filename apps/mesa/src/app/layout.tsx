@@ -2,6 +2,8 @@ import type { Metadata, Viewport } from "next";
 import { Inter, Playfair_Display } from "next/font/google";
 import "./globals.css";
 
+const FAVICON = "https://assets.zyrosite.com/rvH9B7W9kUvvSHwW/chatgpt-image-26-may-2026-16_54_36-4RwvXLTvZr1xrvQL.png";
+
 const inter = Inter({
   subsets: ["latin"],
   variable: "--font-inter",
@@ -15,9 +17,14 @@ const playfair = Playfair_Display({
 });
 
 export const metadata: Metadata = {
-  title: "Nido — Tu mesa",
-  description: "Menú, pedidos y más desde tu mesa",
+  title: "HOLU — Tu mesa",
+  description: "Menú digital, pedidos y más desde tu mesa con HOLU.",
   robots: "noindex",
+  icons: {
+    icon: FAVICON,
+    apple: FAVICON,
+    shortcut: FAVICON,
+  },
 };
 
 export const viewport: Viewport = {
