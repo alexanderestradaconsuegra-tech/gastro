@@ -133,7 +133,7 @@ a{color:inherit;text-decoration:none}
 .container{width:min(1160px,calc(100% - 40px));margin:auto}
 
 .nav{position:sticky;top:0;z-index:40;background:rgba(6,6,5,.82);backdrop-filter:blur(18px);border-bottom:1px solid var(--line)}
-.nav-in{height:72px;display:flex;align-items:center;justify-content:space-between;gap:16px}
+.nav-in{height:90px;display:flex;align-items:center;justify-content:space-between;gap:16px}
 .brand{font-size:27px;letter-spacing:-.06em;color:#fff;font-weight:800;line-height:1}
 .brand small{display:block;font-size:9px;letter-spacing:.22em;color:var(--muted);margin-top:4px;font-weight:500}
 .nav-links{display:flex;align-items:center;gap:22px;color:var(--muted);font-weight:500;font-size:14px}
@@ -285,18 +285,20 @@ a{color:inherit;text-decoration:none}
 
 @media(max-width:960px){
   .nav-links a:not(.btn){display:none}
+  .nav-in{height:72px}
   .hero{padding:52px 0 32px}
   .hero-grid,.split{grid-template-columns:1fr}
-  .tablet-outer{display:none}
   .hero h1{font-size:clamp(40px,9vw,62px)}
   .hero p{font-size:15px}
   .metrics,.modules,.plans,.showcase-grid{grid-template-columns:1fr}
-  .stats{display:flex;overflow-x:auto;padding-bottom:8px}
-  .stat{min-width:160px}
+  .stats-shell{display:none}
   .section{padding:52px 0}
   .section-head{display:block}
   .showcase-card{min-height:320px}
-  .nav-in{height:64px}
+  .tablet-outer{display:flex;justify-content:center;margin-top:28px;perspective:none}
+  .tablet-frame{width:100%;max-width:420px;transform:none;border-radius:28px;padding:12px 10px 16px}
+  .tablet-screen{min-height:auto}
+  .tab-tables{grid-template-columns:repeat(4,1fr)}
 }
 `;
 
@@ -312,7 +314,7 @@ export default function Landing({ n8nBase, adminUrl }: { n8nBase?: string; admin
         <div className="container nav-in">
           <a href="#top" className="brand">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="https://assets.zyrosite.com/rvH9B7W9kUvvSHwW/holu-logo-cIEzv6scenVM9k3O.png" alt="HOLU" style={{ height: 56, display: "block" }} />
+            <img src="https://assets.zyrosite.com/rvH9B7W9kUvvSHwW/holu-logo-cIEzv6scenVM9k3O.png" alt="HOLU" style={{ height: 80, display: "block" }} />
           </a>
           <div className="nav-links">
             <a href="#modulos">Módulos</a>
@@ -542,7 +544,7 @@ export default function Landing({ n8nBase, adminUrl }: { n8nBase?: string; admin
 
       <footer className="footer">
         <div className="container footer-in">
-          <span>© {new Date().getFullYear()} <span style={{ color: "var(--gold2)" }}>HOLU</span>. El restaurante fácil.</span>
+          <span>© {new Date().getFullYear()} <span style={{ color: "var(--gold2)" }}>HOLU</span> fluye en tiempo real.</span>
           <span>Mesas · Camareros · Cocina · Administración · IA · Analítica</span>
         </div>
       </footer>
