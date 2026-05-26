@@ -1766,7 +1766,7 @@ function ReviewsView({ role, staffId, state }: RoleStaffState) {
 }
 
 // ─── Receipt preview ──────────────────────────────────────────────────────────
-function ReceiptPreview({ receiptConfig, restaurant }: { receiptConfig: typeof RECEIPT_CONFIG; restaurant: typeof RESTAURANT }) {
+function ReceiptPreview({ receiptConfig, restaurant, folio }: { receiptConfig: typeof RECEIPT_CONFIG; restaurant: typeof RESTAURANT; folio?: number }) {
   const subtotal = RECEIPT_ITEMS.reduce((s, i) => s + i.qty * i.price, 0);
   const service = Math.round(subtotal * 0.1);
   const total = subtotal + service;
@@ -1776,6 +1776,7 @@ function ReceiptPreview({ receiptConfig, restaurant }: { receiptConfig: typeof R
         <h3>{restaurant.name}</h3>
         <div className="center muted2">{restaurant.legalName}<br />RUT {restaurant.rut}<br />{restaurant.address}<br />{restaurant.phone} · {restaurant.website}</div>
         <div className="dash" />
+        <div className="center muted2">N° {String(folio ?? 1).padStart(4, "0")}</div>
         <div className="center"><b>{receiptConfig.title}</b><br /><span className="muted2">Mesa 7 · {new Date().toLocaleString("es-CL", { hour: "2-digit", minute: "2-digit", day: "2-digit", month: "2-digit", year: "numeric" })}</span></div>
         <div className="dash" />
         {RECEIPT_ITEMS.map((i) => <div className="receipt-row" key={i.name}><span>{i.qty}× {i.name}</span><b>{money(i.qty * i.price)}</b></div>)}
