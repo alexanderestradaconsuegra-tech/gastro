@@ -123,6 +123,8 @@ const TABLES = [
   { n: 8, s: "Libre",   bg: "rgba(255,255,255,.04)", tc: "#6b7280" },
 ];
 
+const WA = "https://wa.me/56992103974";
+
 const CSS = `
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 :root{--bg:#060605;--line:rgba(255,255,255,.1);--text:#fff8ed;--muted:#b0a396;--dim:#6a6058;--gold:#c8a96b;--gold2:#f0d48d;--green:#34d399;--shadow:0 28px 90px rgba(0,0,0,.48)}
@@ -132,10 +134,8 @@ a{color:inherit;text-decoration:none}
 .page{overflow:hidden}
 .container{width:min(1160px,calc(100% - 40px));margin:auto}
 
-.nav{position:sticky;top:0;z-index:40;background:rgba(6,6,5,.82);backdrop-filter:blur(18px);border-bottom:1px solid var(--line)}
-.nav-in{height:100px;display:flex;align-items:center;justify-content:space-between;gap:16px}
-.brand{font-size:27px;letter-spacing:-.06em;color:#fff;font-weight:800;line-height:1}
-.brand small{display:block;font-size:9px;letter-spacing:.22em;color:var(--muted);margin-top:4px;font-weight:500}
+.nav{position:sticky;top:0;z-index:40;background:rgba(6,6,5,.88);backdrop-filter:blur(18px);border-bottom:1px solid var(--line)}
+.nav-in{height:110px;display:flex;align-items:center;justify-content:space-between;gap:16px}
 .nav-links{display:flex;align-items:center;gap:22px;color:var(--muted);font-weight:500;font-size:14px}
 .nav-links a:not(.btn):hover{color:var(--text)}
 
@@ -144,8 +144,10 @@ a{color:inherit;text-decoration:none}
 .btn.primary:hover{box-shadow:0 16px 44px rgba(200,169,107,.34);transform:translateY(-1px)}
 .btn.ghost{background:rgba(255,255,255,.07);border:1px solid var(--line);color:var(--text)}
 .btn.ghost:hover{background:rgba(255,255,255,.11)}
+.btn.wa{background:linear-gradient(135deg,#25d366,#128c48);color:#fff;box-shadow:0 10px 28px rgba(37,211,102,.22)}
+.btn.wa:hover{box-shadow:0 14px 36px rgba(37,211,102,.34);transform:translateY(-1px)}
 
-.hero{position:relative;padding:88px 0 52px}
+.hero{position:relative;padding:80px 0 52px}
 .hero-grid{display:grid;grid-template-columns:1fr 1fr;gap:48px;align-items:center}
 .eyebrow{color:var(--gold2);font-weight:600;letter-spacing:.12em;font-size:11px;text-transform:uppercase}
 .hero h1{font-size:clamp(48px,6.5vw,84px);font-weight:700;line-height:.88;letter-spacing:-.06em;margin:14px 0 18px;color:#fff}
@@ -161,7 +163,7 @@ a{color:inherit;text-decoration:none}
 .metric b{display:block;font-size:28px;font-weight:700;color:var(--gold2);line-height:1}
 .metric span{display:block;color:var(--muted);margin-top:6px;line-height:1.4;font-size:13px}
 
-/* ── TABLET ─────────────────────────────────────────────── */
+/* TABLET */
 .tablet-outer{display:flex;justify-content:center;align-items:flex-start;perspective:1600px}
 .tablet-frame{
   position:relative;width:440px;
@@ -180,7 +182,7 @@ a{color:inherit;text-decoration:none}
 }
 .tablet-camera{width:9px;height:9px;border-radius:50%;background:#0a0a0c;box-shadow:0 0 0 1.5px rgba(255,255,255,.08),inset 0 0 4px rgba(80,160,255,.35);margin:0 auto 10px}
 .tablet-home{width:72px;height:4px;border-radius:4px;background:rgba(255,255,255,.16);margin:10px auto 0}
-.tablet-screen{border-radius:24px;background:#08080f;overflow:hidden;border:1px solid rgba(0,0,0,.7);box-shadow:inset 0 0 60px rgba(200,169,107,.03)}
+.tablet-screen{border-radius:24px;background:#08080f;overflow:hidden;border:1px solid rgba(0,0,0,.7)}
 .tablet-btn-right{position:absolute;right:-3px;top:110px;width:3px;height:52px;border-radius:0 3px 3px 0;background:linear-gradient(180deg,#3a3a3c,#2a2a2c);box-shadow:2px 0 4px rgba(0,0,0,.4)}
 .tablet-btn-vol1{position:absolute;left:-3px;top:100px;width:3px;height:38px;border-radius:3px 0 0 3px;background:linear-gradient(180deg,#3a3a3c,#2a2a2c);box-shadow:-2px 0 4px rgba(0,0,0,.4)}
 .tablet-btn-vol2{position:absolute;left:-3px;top:148px;width:3px;height:38px;border-radius:3px 0 0 3px;background:linear-gradient(180deg,#3a3a3c,#2a2a2c);box-shadow:-2px 0 4px rgba(0,0,0,.4)}
@@ -206,7 +208,7 @@ a{color:inherit;text-decoration:none}
 .tab-footbtn{flex:1;border-radius:10px;padding:9px 6px;font-size:11px;font-weight:600;text-align:center;cursor:pointer;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.04);color:var(--muted)}
 .tab-footbtn.active{background:linear-gradient(135deg,rgba(200,169,107,.18),rgba(255,255,255,.04));border-color:rgba(240,212,141,.24);color:var(--gold2)}
 
-/* STATS STRIP */
+/* STATS */
 .stats-shell{margin-top:32px}
 .stats-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
 .stats{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;overflow-x:auto;padding-bottom:4px;scrollbar-width:none}
@@ -253,11 +255,12 @@ a{color:inherit;text-decoration:none}
 .demo-option{display:flex;align-items:flex-start;gap:14px;border-radius:18px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.04);padding:16px;color:var(--text);transition:.2s ease}
 .demo-option:hover{transform:translateY(-2px);border-color:rgba(240,212,141,.22);background:rgba(255,255,255,.07)}
 .demo-option.primary-demo{background:linear-gradient(135deg,rgba(200,169,107,.14),rgba(255,255,255,.04));border-color:rgba(240,212,141,.24)}
-.demo-badge{width:40px;height:40px;border-radius:12px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);display:grid;place-items:center;color:var(--gold2);font-size:11px;font-weight:700;flex:0 0 auto}
+.demo-badge{width:40px;height:40px;border-radius:12px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);display:grid;place-items:center;font-size:18px;flex:0 0 auto}
 .demo-option strong{display:block;font-size:15px;font-weight:600;letter-spacing:-.02em}
 .demo-option small{display:block;color:var(--muted);line-height:1.5;margin-top:4px;font-size:13px}
 .demo-safe{margin-top:14px;border-radius:14px;background:rgba(52,211,153,.06);border:1px solid rgba(52,211,153,.12);padding:12px 14px;color:#b8f5d8;font-size:13px;line-height:1.6;position:relative;z-index:1}
 
+/* PLANS */
 .plans{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
 .plan.highlight{border-color:rgba(240,212,141,.32);background:linear-gradient(145deg,rgba(200,169,107,.1),rgba(255,255,255,.03))}
 .tag{position:absolute;top:14px;right:14px;border-radius:999px;background:rgba(52,211,153,.12);color:var(--green);font-size:11px;padding:6px 10px;font-weight:600;letter-spacing:.04em}
@@ -265,6 +268,25 @@ a{color:inherit;text-decoration:none}
 .features{display:grid;gap:8px;margin:16px 0}
 .features div{color:var(--muted);font-size:14px;line-height:1.4}
 
+/* REGISTER FORM */
+.register-section{padding:80px 0;background:radial-gradient(circle at 50% 50%,rgba(200,169,107,.06),transparent 60%)}
+.register-wrap{display:grid;grid-template-columns:1fr 1fr;gap:48px;align-items:center}
+.register-form-box{border-radius:28px;background:linear-gradient(145deg,rgba(255,255,255,.07),rgba(255,255,255,.025));border:1px solid var(--line);padding:32px;box-shadow:var(--shadow)}
+.form-field{margin-bottom:14px}
+.form-field label{display:block;font-size:13px;font-weight:600;color:var(--muted);margin-bottom:6px}
+.form-field input{width:100%;background:rgba(255,255,255,.06);border:1px solid var(--line);border-radius:12px;padding:13px 16px;color:var(--text);font-size:15px;font-family:inherit;outline:none;transition:.2s ease}
+.form-field input:focus{border-color:rgba(240,212,141,.4);background:rgba(255,255,255,.08)}
+.form-field input::placeholder{color:var(--dim)}
+.form-success{text-align:center;padding:24px 0}
+.form-success .success-icon{font-size:48px;margin-bottom:12px}
+.form-success h4{font-size:22px;font-weight:700;margin:0 0 8px}
+.form-success p{color:var(--muted);font-size:14px;line-height:1.7;margin:0 0 20px}
+.demo-creds{background:rgba(200,169,107,.08);border:1px solid rgba(200,169,107,.2);border-radius:14px;padding:14px 16px;font-size:13px;color:var(--gold2);text-align:left;line-height:1.8}
+.register-benefits{display:grid;gap:10px;margin-top:24px}
+.reg-benefit{display:flex;gap:10px;align-items:flex-start;color:#c8bba8;font-size:15px;line-height:1.5}
+.reg-check{color:var(--green);font-size:16px;flex:0 0 auto;margin-top:1px}
+
+/* FAQ */
 .faq-accordion{display:grid;gap:10px}
 .faq-item{border-radius:18px;border:1px solid var(--line);background:rgba(255,255,255,.03);overflow:hidden}
 .faq-btn{width:100%;background:none;border:0;color:var(--text);display:flex;justify-content:space-between;align-items:center;padding:20px 22px;font-size:16px;font-weight:600;cursor:pointer;text-align:left;gap:16px}
@@ -277,17 +299,20 @@ a{color:inherit;text-decoration:none}
 .final-box::before{content:'';position:absolute;inset:0;background:radial-gradient(circle at top right,rgba(240,212,141,.1),transparent 32%);pointer-events:none}
 .final-box h2{font-size:clamp(44px,6.5vw,96px);font-weight:700;line-height:.86;letter-spacing:-.07em;margin:12px auto 16px;position:relative;z-index:1}
 .final-box p{color:var(--muted);max-width:640px;margin:0 auto 28px;line-height:1.8;position:relative;z-index:1}
+.final-btns{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;position:relative;z-index:1}
 
 .footer{border-top:1px solid var(--line);padding:26px 0;color:var(--dim);font-size:13px}
 .footer-in{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap}
 
 @keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.82;transform:scale(1.03)}}
+@keyframes spin{to{transform:rotate(360deg)}}
+.spinner{width:18px;height:18px;border:2px solid rgba(0,0,0,.2);border-top-color:#160f02;border-radius:50%;animation:spin .7s linear infinite}
 
 @media(max-width:960px){
   .nav-links a:not(.btn){display:none}
   .nav-in{height:80px}
   .hero{padding:48px 0 28px}
-  .hero-grid,.split{grid-template-columns:1fr}
+  .hero-grid,.split,.register-wrap{grid-template-columns:1fr}
   .hero h1{font-size:clamp(40px,9vw,62px)}
   .hero p{font-size:15px}
   .trust{display:none}
@@ -301,14 +326,36 @@ a{color:inherit;text-decoration:none}
   .showcase-card{min-height:320px}
   .tablet-outer{display:flex;justify-content:center;margin-top:24px;perspective:none}
   .tablet-frame{width:100%;max-width:400px;transform:none;border-radius:28px;padding:12px 10px 16px}
-  .tablet-screen{min-height:auto}
   .tab-tables{grid-template-columns:repeat(4,1fr)}
+  .register-section{padding:52px 0}
 }
 `;
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export default function Landing({ n8nBase, adminUrl }: { n8nBase?: string; adminUrl?: string }) {
   const [openFaq, setOpenFaq] = useState(0);
+  const [form, setForm] = useState({ name: "", email: "", phone: "" });
+  const [formState, setFormState] = useState<"idle" | "loading" | "done" | "error">("idle");
+
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const _ = adminUrl;
+
+  async function handleRegister(e: React.FormEvent) {
+    e.preventDefault();
+    setFormState("loading");
+    try {
+      const base = n8nBase ?? "";
+      if (base) {
+        await fetch(`${base}/webhook/demo-register`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(form),
+        });
+      }
+      setFormState("done");
+    } catch {
+      setFormState("done");
+    }
+  }
 
   return (
     <div className="page">
@@ -316,29 +363,28 @@ export default function Landing({ n8nBase, adminUrl }: { n8nBase?: string; admin
 
       <nav className="nav">
         <div className="container nav-in">
-          <a href="#top" className="brand">
+          <a href="#top">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="https://assets.zyrosite.com/rvH9B7W9kUvvSHwW/holu-logo-cIEzv6scenVM9k3O.png" alt="HOLU" style={{ height: 96, display: "block" }} />
+            <img src="https://assets.zyrosite.com/rvH9B7W9kUvvSHwW/holu-logo-cIEzv6scenVM9k3O.png" alt="HOLU" style={{ height: 108, display: "block" }} />
           </a>
           <div className="nav-links">
             <a href="#modulos">Módulos</a>
             <a href="#beneficios">Beneficios</a>
             <a href="#precios">Planes</a>
             <a href="#faq">Preguntas</a>
-            <a className="btn primary" href="#demo">Comenzar ahora</a>
+            <a className="btn primary" href="#registro">Probar gratis</a>
           </div>
         </div>
       </nav>
 
       <header id="top" className="hero">
         <div className="container hero-grid">
-          {/* LEFT */}
           <div>
             <div className="eyebrow">Simple · Rápido · Todo conectado</div>
             <h1>El caos del restaurante termina con <span style={{ color: "var(--gold2)" }}>HOLU</span>.</h1>
             <p>HOLU es la forma fácil de organizar tu restaurante: mesas, pedidos, camareros, cocina, caja, propinas y clientes conectados en una sola app.</p>
             <div className="cta-row">
-              <a className="btn primary" href="#demo">Probar HOLU</a>
+              <a className="btn primary" href="#registro">Probar gratis</a>
               <a className="btn ghost" href="#modulos">Ver cómo funciona</a>
             </div>
             <div className="trust">
@@ -350,7 +396,6 @@ export default function Landing({ n8nBase, adminUrl }: { n8nBase?: string; admin
             <div className="metrics">{metrics.map(([value, label]) => <div className="metric" key={value}><b>{value}</b><span>{label}</span></div>)}</div>
           </div>
 
-          {/* TABLET */}
           <div className="tablet-outer">
             <div className="tablet-frame">
               <div className="tablet-btn-right" />
@@ -358,7 +403,6 @@ export default function Landing({ n8nBase, adminUrl }: { n8nBase?: string; admin
               <div className="tablet-btn-vol2" />
               <div className="tablet-camera" />
               <div className="tablet-screen">
-                {/* Top bar */}
                 <div className="tab-topbar">
                   <div className="tab-topbar-row">
                     <span className="tab-brand">HOLU Admin</span>
@@ -370,7 +414,6 @@ export default function Landing({ n8nBase, adminUrl }: { n8nBase?: string; admin
                     <div className="tab-stat"><b>4</b><span>Mesas activas</span></div>
                   </div>
                 </div>
-                {/* Orders */}
                 <div className="tab-section">
                   <div className="tab-label">Pedidos activos</div>
                   {ORDERS.map(o => (
@@ -383,7 +426,6 @@ export default function Landing({ n8nBase, adminUrl }: { n8nBase?: string; admin
                     </div>
                   ))}
                 </div>
-                {/* Tables */}
                 <div className="tab-section" style={{ paddingTop: 0 }}>
                   <div className="tab-label">Mesas</div>
                   <div className="tab-tables">
@@ -395,7 +437,6 @@ export default function Landing({ n8nBase, adminUrl }: { n8nBase?: string; admin
                     ))}
                   </div>
                 </div>
-                {/* Footer nav */}
                 <div className="tab-footer">
                   <div className="tab-footbtn active">Pedidos</div>
                   <div className="tab-footbtn">Mesas</div>
@@ -481,7 +522,7 @@ export default function Landing({ n8nBase, adminUrl }: { n8nBase?: string; admin
 
           <div className="demo-card-pro">
             <span className="label">Acceso instantáneo</span>
-            <h3 style={{ fontSize: "clamp(24px,3vw,32px)", lineHeight: 1.05, letterSpacing: "-.04em", margin: "12px 0 10px", fontWeight: 700 }}>Elige cómo quieres probar HOLU.</h3>
+            <h3 style={{ fontSize: "clamp(24px,3vw,32px)", lineHeight: 1.05, letterSpacing: "-.04em", margin: "12px 0 10px", fontWeight: 700 }}>Elige cómo quieres probar <span style={{ color: "var(--gold2)" }}>HOLU</span>.</h3>
             <p style={{ color: "var(--muted)", fontSize: 14, lineHeight: 1.7, margin: 0 }}>La demo está lista para usar desde cualquier dispositivo. No necesitas tarjeta, instalación ni crear usuario.</p>
             <div className="demo-options">
               <a className="demo-option primary-demo" href="/demo"><div className="demo-badge">🏠</div><div><strong>Demo completa</strong><small>Todo el restaurante funcionando.</small></div></a>
@@ -490,6 +531,95 @@ export default function Landing({ n8nBase, adminUrl }: { n8nBase?: string; admin
               <a className="demo-option" href="/demo/caja"><div className="demo-badge">💳</div><div><strong>Caja</strong><small>Pagos, propinas y boletas.</small></div></a>
             </div>
             <div className="demo-safe">La demo usa datos temporales y se reinicia automáticamente.</div>
+          </div>
+        </div>
+      </section>
+
+      {/* ── REGISTRO GRATUITO ─────────────────────────────────── */}
+      <section id="registro" className="register-section">
+        <div className="container register-wrap">
+          <div>
+            <div className="eyebrow">Acceso demo gratuito</div>
+            <h2 style={{ fontSize: "clamp(36px,5vw,58px)", fontWeight: 700, lineHeight: .92, letterSpacing: "-.05em", margin: "14px 0 18px" }}>Regístrate gratis y recibe acceso a la demo completa.</h2>
+            <p style={{ color: "var(--muted)", lineHeight: 1.75, fontSize: 16, marginBottom: 24 }}>Sin tarjeta, sin compromiso. Te enviamos el acceso al instante para que puedas explorar mesas QR, cocina, camareros, caja y administración.</p>
+            <div className="register-benefits">
+              {[
+                "Acceso inmediato a todo el sistema HOLU",
+                "Explora mesas QR, cocina, caja y administración",
+                "Sin instalación — funciona desde el navegador",
+                "Cuando quieras activar tu restaurante real, te avisamos",
+              ].map(b => (
+                <div className="reg-benefit" key={b}>
+                  <span className="reg-check">✓</span>
+                  <span>{b}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="register-form-box">
+            {formState === "done" ? (
+              <div className="form-success">
+                <div className="success-icon">🎉</div>
+                <h4>¡Listo! Revisa tu correo.</h4>
+                <p>Te enviamos el acceso a la demo de <span style={{ color: "var(--gold2)" }}>HOLU</span>. Puedes empezar a explorar ahora mismo.</p>
+                <div className="demo-creds">
+                  <strong>Acceso demo:</strong><br />
+                  Usuario: <strong>demo@holu.app</strong><br />
+                  Clave: <strong>holu2026</strong>
+                </div>
+                <div style={{ marginTop: 20 }}>
+                  <a className="btn primary" href="/demo" style={{ width: "100%", justifyContent: "center" }}>Entrar a la demo ahora →</a>
+                </div>
+              </div>
+            ) : (
+              <form onSubmit={handleRegister}>
+                <h3 style={{ fontSize: 22, fontWeight: 700, letterSpacing: "-.03em", margin: "0 0 6px" }}>Crear acceso gratuito</h3>
+                <p style={{ color: "var(--muted)", fontSize: 14, margin: "0 0 22px", lineHeight: 1.6 }}>Es gratis para probar. Activa tu restaurante cuando quieras.</p>
+                <div className="form-field">
+                  <label>Nombre</label>
+                  <input
+                    type="text"
+                    placeholder="Tu nombre"
+                    required
+                    value={form.name}
+                    onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+                  />
+                </div>
+                <div className="form-field">
+                  <label>Correo electrónico</label>
+                  <input
+                    type="email"
+                    placeholder="tu@email.com"
+                    required
+                    value={form.email}
+                    onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
+                  />
+                </div>
+                <div className="form-field">
+                  <label>WhatsApp <span style={{ color: "var(--dim)", fontWeight: 400 }}>(opcional)</span></label>
+                  <input
+                    type="tel"
+                    placeholder="+56 9 1234 5678"
+                    value={form.phone}
+                    onChange={e => setForm(f => ({ ...f, phone: e.target.value }))}
+                  />
+                </div>
+                <button
+                  type="submit"
+                  className="btn primary"
+                  style={{ width: "100%", marginTop: 4, fontSize: 15, padding: "14px 20px", justifyContent: "center" }}
+                  disabled={formState === "loading"}
+                >
+                  {formState === "loading"
+                    ? <><span className="spinner" />Enviando...</>
+                    : "Quiero probar HOLU gratis →"}
+                </button>
+                <p style={{ color: "var(--dim)", fontSize: 12, textAlign: "center", marginTop: 12 }}>
+                  Sin tarjeta · Sin compromiso · Acceso inmediato
+                </p>
+              </form>
+            )}
           </div>
         </div>
       </section>
@@ -508,7 +638,15 @@ export default function Landing({ n8nBase, adminUrl }: { n8nBase?: string; admin
                 <div className="price">{plan.price}<small style={{ fontSize: 13, color: "var(--muted)", fontWeight: 500 }}> / mes</small></div>
                 <p style={{ color: "var(--muted)", fontSize: 14, lineHeight: 1.6 }}>{plan.desc}</p>
                 <div className="features">{plan.features.map(f => <div key={f}>✓ {f}</div>)}</div>
-                <a className={plan.highlight ? "btn primary" : "btn ghost"} href="#demo" style={{ width: "100%", marginTop: 4 }}>Comenzar ahora</a>
+                <a
+                  className="btn wa"
+                  href={`${WA}?text=${encodeURIComponent(`Hola, me interesa el plan ${plan.name} de HOLU`)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ width: "100%", marginTop: 4 }}
+                >
+                  💬 Pedir información
+                </a>
               </article>
             ))}
           </div>
@@ -541,7 +679,10 @@ export default function Landing({ n8nBase, adminUrl }: { n8nBase?: string; admin
             <div className="eyebrow">El restaurante moderno empieza aquí</div>
             <h2>El restaurante moderno funciona con <span style={{ color: "var(--gold2)" }}>HOLU</span>.</h2>
             <p>Clientes pidiendo desde la mesa, camareros conectados, cocina sincronizada, caja organizada y autoservicio funcionando en tiempo real.</p>
-            <a className="btn primary" href="/demo">Probar demo gratis</a>
+            <div className="final-btns">
+              <a className="btn primary" href="#registro">Registrarme gratis</a>
+              <a className="btn wa" href={WA} target="_blank" rel="noopener noreferrer">💬 Hablar por WhatsApp</a>
+            </div>
           </div>
         </div>
       </section>
