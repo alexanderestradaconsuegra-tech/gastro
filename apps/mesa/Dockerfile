@@ -2,7 +2,7 @@
 FROM node:20-alpine AS deps
 WORKDIR /app
 
-ARG CACHEBUST=3
+ARG CACHEBUST=4
 RUN echo "cachebust=$CACHEBUST"
 
 # Install libc6-compat for alpine compatibility

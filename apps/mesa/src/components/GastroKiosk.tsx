@@ -131,7 +131,10 @@ function IdleScreen({ restaurantName, tableLabel, onStart }: {
       <div className="idle-brand">
         {restaurantName}<small>AUTOSERVICIO</small>
       </div>
-      <div className="idle-ring">{CUTLERY}</div>
+      <div className="idle-ring">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="https://assets.zyrosite.com/rvH9B7W9kUvvSHwW/chatgpt-image-26-may-2026-16_54_36-4RwvXLTvZr1xrvQL.png" alt="HOLU" style={{ width: 150, height: 150, objectFit: "contain", borderRadius: "50%" }} />
+      </div>
       <p className="idle-cta">¡Bienvenido!</p>
       <p className="idle-sub">{tableLabel} · Toca para comenzar tu pedido</p>
       <button className="idle-btn" onClick={(e) => { e.stopPropagation(); onStart(); }}>
@@ -417,7 +420,7 @@ export default function GastroKiosk({ qrToken }: { qrToken: string }) {
 
   const { tableCtx } = session;
   const tableLabel = tableCtx?.tableLabel ?? "Kiosko";
-  const restaurantName = "NIDO";
+  const restaurantName = "HOLU";
 
   // Invalid / no QR
   if (!session.loading && !tableCtx && qrToken) {
