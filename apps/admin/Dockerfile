@@ -5,7 +5,7 @@ WORKDIR /app
 # Install libc6-compat for alpine compatibility
 RUN apk add --no-cache libc6-compat
 
-ARG CACHEBUST=40
+ARG CACHEBUST=41
 RUN echo "cachebust=$CACHEBUST"
 
 COPY package*.json ./

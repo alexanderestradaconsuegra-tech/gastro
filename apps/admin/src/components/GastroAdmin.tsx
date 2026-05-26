@@ -6,7 +6,6 @@ import { uploadMenuImage, uploadStaffAvatar } from "@/lib/storage";
 import { getRestaurantId } from "@/lib/supabase";
 import type { StaffProfile } from "@/hooks/useAuth";
 import {
-  WEBHOOKS,
   type StaffRole,
   type TabId,
   type StaffMember,
@@ -80,20 +79,6 @@ const KITCHEN_COLUMNS: Record<string, string> = {
   delivered: "Servido",
 };
 
-const SALES_PERIODS: Record<string, { label: string; sales: number; tips: number; tickets: number; avgTicket: number }> = {
-  day: { label: "Día", sales: 497400, tips: 29150, tickets: 18, avgTicket: 27633 },
-  month: { label: "Mes", sales: 14892400, tips: 1287400, tickets: 522, avgTicket: 28529 },
-  year: { label: "Año", sales: 174881000, tips: 14932000, tickets: 6240, avgTicket: 28025 },
-};
-
-const MENU_SALES = [
-  { id: "tagliatelle", dish: "Tagliatelle al Ragù", category: "Principales", sold: 34, revenue: 731000, avgPrep: 18, stock: "OK" },
-  { id: "spritz", dish: "Spritz Aperol", category: "Bebidas", sold: 61, revenue: 597800, avgPrep: 5, stock: "OK" },
-  { id: "ossobuco", dish: "Osso Buco Milanese", category: "Principales", sold: 18, revenue: 585000, avgPrep: 32, stock: "Bajo" },
-  { id: "branzino", dish: "Branzino al Forno", category: "Principales", sold: 13, revenue: 375700, avgPrep: 25, stock: "OK" },
-  { id: "burrata", dish: "Burrata di Bufala", category: "Entradas", sold: 22, revenue: 319000, avgPrep: 8, stock: "OK" },
-  { id: "tiramisu", dish: "Tiramisù Classico", category: "Postres", sold: 25, revenue: 237500, avgPrep: 7, stock: "OK" },
-];
 
 const RECEIPT_ITEMS = [
   { name: "Tagliatelle al Ragù", qty: 1, price: 21500 },
@@ -568,7 +553,7 @@ interface TableWithTip extends TableRow {
   tipAmount?: number;
 }
 
-function TableReceipt({ table, waiterName }: { table: TableWithTip; waiterName: string }) {
+function TableReceipt({ table, waiterName, folio }: { table: TableWithTip; waiterName: string; folio?: number }) {
   const subtotal = table.bill;
   const tip = table.tipAmount ?? 0;
   const total = subtotal + tip;
@@ -578,6 +563,7 @@ function TableReceipt({ table, waiterName }: { table: TableWithTip; waiterName: 
         <h3>{RESTAURANT.name}</h3>
         <div className="center muted2">{RESTAURANT.legalName}<br />RUT {RESTAURANT.rut}<br />{RESTAURANT.address}<br />{RESTAURANT.phone} · {RESTAURANT.website}</div>
         <div className="dash" />
+        {folio != null && <div className="center muted2">N° {String(folio).padStart(4, "0")}</div>}
         <div className="center"><b>BOLETA MESA {table.id}</b><br /><span className="muted2">{new Date().toLocaleString("es-CL", { hour: "2-digit", minute: "2-digit", day: "2-digit", month: "2-digit", year: "numeric" })}</span></div>
         <div className="dash" />
         <div className="receipt-row"><span>Consumo mesa</span><b>{money(subtotal)}</b></div>
@@ -685,6 +671,7 @@ function TableDrawer({ table, role, staffId, state, onClose }: { table: TableRow
   const [paymentMethod, setPaymentMethod] = useState<"cash" | "card" | "transfer">("cash");
   // Tip is local state — avoids race with realtime overwrites
   const [tipAccepted, setTipAccepted] = useState(false);
+  const [tableFolio, setTableFolio] = useState<number | null>(null);
   const waiter = getStaffById(state.staff, liveTable.waiterId);
   const tableOrders = state.orders.filter((o) => o.tableId === liveTable.id);
   const tableMessages = state.messages.filter((m) => m.tableId === liveTable.id);
@@ -794,10 +781,16 @@ function TableDrawer({ table, role, staffId, state, onClose }: { table: TableRow
               <div><h2>Ticket Mesa {liveTable.id}</h2><p style={{ margin: "4px 0 0" }}>{paymentMethod === "cash" ? "Efectivo" : paymentMethod === "card" ? "Tarjeta" : "Transferencia"}</p></div>
               <button className="btn ghost" onClick={() => setShowReceipt(false)}>Cerrar</button>
             </div>
-            <TableReceipt table={{ ...liveTable, bill, tipAmount, tipAccepted } as TableWithTip} waiterName={waiter?.name ?? "—"} />
+            <TableReceipt table={{ ...liveTable, bill, tipAmount, tipAccepted } as TableWithTip} waiterName={waiter?.name ?? "—"} folio={tableFolio ?? undefined} />
             <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 14, flexWrap: "wrap" }}>
               <button className="btn ghost" onClick={() => setShowReceipt(false)}>Volver</button>
-              <button className="btn ghost" onClick={() => window.print()}>Imprimir</button>
+              <button className="btn ghost" onClick={() => {
+                const key = `gastro-folio-${getRestaurantId()}`;
+                const next = parseInt(localStorage.getItem(key) ?? "0", 10) + 1;
+                localStorage.setItem(key, String(next));
+                setTableFolio(next);
+                window.print();
+              }}>Imprimir</button>
               <button className="btn primary" onClick={handleCobrar}>Cobrar {money(total)}</button>
             </div>
           </div>
@@ -1224,59 +1217,93 @@ function ExpenseRegister({ state }: { state: BackofficeState; staffId: string })
 }
 
 // ─── Sales ───────────────────────────────────────────────────────────────────
-function SalesView() {
-  const [period, setPeriod] = useState("day");
-  const current = SALES_PERIODS[period];
-  const total = MENU_SALES.reduce((s, d) => s + d.revenue, 0);
-  const max = Math.max(...MENU_SALES.map((d) => d.revenue));
+function SalesView({ state }: { state: BackofficeState }) {
+  const session = state.cashSession;
+
+  const sessionOrders = state.orders.filter(o => o.status !== "cancelled");
+
+  const totalSales = sessionOrders.reduce((s, o) => s + (o.total ?? 0), 0);
+  const totalTips = session.tips ?? 0;
+  const ticketCount = sessionOrders.length;
+  const avgTicket = ticketCount > 0 ? Math.round(totalSales / ticketCount) : 0;
+
+  // Sales by dish using order items
+  const dishMap = new Map<string, { dish: string; sold: number; revenue: number }>();
+  for (const order of sessionOrders) {
+    for (const item of (order.items ?? [])) {
+      const key = item.dish;
+      const existing = dishMap.get(key);
+      if (existing) {
+        existing.sold += item.qty;
+        existing.revenue += (item.price ?? 0) * item.qty;
+      } else {
+        dishMap.set(key, { dish: item.dish, sold: item.qty, revenue: (item.price ?? 0) * item.qty });
+      }
+    }
+  }
+  const dishSales = Array.from(dishMap.values()).sort((a, b) => b.revenue - a.revenue);
+  const maxRevenue = Math.max(1, ...dishSales.map(d => d.revenue));
+
+  const sessionLabel = session.status === "abierta"
+    ? `Caja abierta — turno ${session.turn}`
+    : "Sin caja abierta — mostrando pedidos activos";
+
   return (
     <div className="grid">
       <div className="panel">
         <div className="panel-head">
-          <div><h2>Ventas por periodo</h2><p style={{ margin: "4px 0 0" }}>Incluye control de propina 10%.</p></div>
-          <div className="period-switch">
-            {Object.entries(SALES_PERIODS).map(([key, p]) => (
-              <button key={key} className={period === key ? "on" : ""} onClick={() => setPeriod(key)}>{p.label}</button>
-            ))}
+          <div>
+            <h2>Ventas del turno</h2>
+            <p style={{ margin: "4px 0 0" }}>{sessionLabel}</p>
           </div>
+          <span className={`badge ${session.status === "abierta" ? "green" : "red"}`}>
+            {session.status === "abierta" ? "Caja abierta" : "Caja cerrada"}
+          </span>
         </div>
+        {session.status !== "abierta" && (
+          <div style={{ borderRadius: 14, background: "rgba(239,68,68,.08)", border: "1px solid rgba(239,68,68,.2)", padding: "12px 14px", marginBottom: 14, color: "var(--muted)", fontSize: 14 }}>
+            No hay caja abierta. Las ventas mostradas corresponden a pedidos activos. Abre caja para registrar el turno correctamente.
+          </div>
+        )}
         <div className="sales-split">
-          <div className="sales-mini"><span>Ventas {current.label.toLowerCase()}</span><strong>{money(current.sales)}</strong></div>
-          <div className="sales-mini"><span>Propina 10%</span><strong>{money(current.tips)}</strong></div>
-          <div className="sales-mini"><span>Tickets</span><strong>{current.tickets}</strong></div>
-          <div className="sales-mini"><span>Ticket promedio</span><strong>{money(current.avgTicket)}</strong></div>
+          <div className="sales-mini"><span>Ventas del turno</span><strong>{money(totalSales)}</strong></div>
+          <div className="sales-mini"><span>Propinas</span><strong>{money(totalTips)}</strong></div>
+          <div className="sales-mini"><span>Boletas</span><strong>{ticketCount}</strong></div>
+          <div className="sales-mini"><span>Ticket promedio</span><strong>{money(avgTicket)}</strong></div>
         </div>
       </div>
-      <div className="kpis">
-        <div className="kpi"><span>Ventas platos</span><strong>{money(total)}</strong><small>Acumulado del servicio</small></div>
-        <div className="kpi"><span>Plato top</span><strong>{MENU_SALES[0].sold}</strong><small>{MENU_SALES[0].dish}</small></div>
-        <div className="kpi"><span>Propina registrada</span><strong>{money(current.tips)}</strong><small>Separada de ventas</small></div>
-        <div className="kpi"><span>Stock bajo</span><strong>{MENU_SALES.filter((d) => d.stock === "Bajo").length}</strong><small>Revisar cocina</small></div>
-      </div>
-      <div className="panel">
-        <div className="panel-head"><h2>Registro de ventas por plato</h2><span className="badge green">Admin</span></div>
-        <div className="chart">
-          {MENU_SALES.map((d) => (
-            <div className="bar" key={d.id}>
-              <b>{d.dish}</b>
-              <div className="bar-track"><div className="bar-fill" style={{ width: `${Math.max(8, d.revenue / max * 100)}%` }} /></div>
-              <span>{money(d.revenue)}</span>
+      {dishSales.length > 0 ? (
+        <>
+          <div className="panel">
+            <div className="panel-head"><h2>Ventas por plato</h2></div>
+            <div className="chart">
+              {dishSales.map(d => (
+                <div className="bar" key={d.dish}>
+                  <b>{d.dish}</b>
+                  <div className="bar-track"><div className="bar-fill" style={{ width: `${Math.max(6, d.revenue / maxRevenue * 100)}%` }} /></div>
+                  <span>{money(d.revenue)}</span>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
-      </div>
-      <div className="panel">
-        <div className="panel-head"><h2>Detalle de platos</h2></div>
-        <div className="list">
-          {MENU_SALES.map((d) => (
-            <div className="row" key={d.id}>
-              <span className={`badge ${d.stock === "Bajo" ? "red" : "green"}`}>{d.stock}</span>
-              <div className="row-main"><b>{d.dish}</b><small>{d.category} · vendidos: {d.sold} · prep promedio: {d.avgPrep} min</small></div>
-              <strong>{money(d.revenue)}</strong>
+          </div>
+          <div className="panel">
+            <div className="panel-head"><h2>Detalle de platos</h2></div>
+            <div className="list">
+              {dishSales.map(d => (
+                <div className="row" key={d.dish}>
+                  <span className="badge green">{d.sold}x</span>
+                  <div className="row-main"><b>{d.dish}</b></div>
+                  <strong>{money(d.revenue)}</strong>
+                </div>
+              ))}
             </div>
-          ))}
+          </div>
+        </>
+      ) : (
+        <div className="panel" style={{ textAlign: "center", padding: 32, color: "var(--muted)" }}>
+          No hay ventas registradas en este turno todavía.
         </div>
-      </div>
+      )}
     </div>
   );
 }
@@ -1799,35 +1826,21 @@ function SettingsView({ state }: { state: BackofficeState }) {
   const [restaurant, setRestaurant] = useState(RESTAURANT);
   const [receiptConfig, setReceiptConfig] = useState(RECEIPT_CONFIG);
   const [showPrinterPanel, setShowPrinterPanel] = useState(true);
-  const [webhooks, setWebhooks] = useState<Record<string, string>>({ ...WEBHOOKS });
-  const [logs, setLogs] = useState([
-    { time: "20:45", event: "SYSTEM_READY", status: "ok", detail: "Sistema conectado a Supabase y n8n." },
-  ]);
+  const [currentFolio, setCurrentFolio] = useState(() => {
+    if (typeof window === "undefined") return 1;
+    const key = `gastro-folio-${getRestaurantId()}`;
+    return parseInt(localStorage.getItem(key) ?? "0", 10) + 1;
+  });
   const updateRestaurant = (key: keyof typeof RESTAURANT, value: string) =>
     setRestaurant((r) => ({ ...r, [key]: value }));
   const updateReceipt = (key: keyof typeof RECEIPT_CONFIG, value: unknown) =>
     setReceiptConfig((r) => ({ ...r, [key]: value }));
   const printReceipt = () => {
-    setLogs((rows) => [{ time: new Date().toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" }), event: "PRINT_PREVIEW", status: "ok", detail: "window.print() ejecutado." }, ...rows]);
+    const key = `gastro-folio-${getRestaurantId()}`;
+    const next = parseInt(localStorage.getItem(key) ?? "0", 10) + 1;
+    localStorage.setItem(key, String(next));
+    setCurrentFolio(next);
     window.print();
-  };
-  const updateWebhook = (key: string, value: string) => setWebhooks((w) => ({ ...w, [key]: value }));
-  const simulateWebhook = async (event: string) => {
-    const payload = { event, restaurantId: getRestaurantId(), tableId: 7, qrToken: "A7K92", source: "admin", createdAt: new Date().toISOString() };
-    const demoMode = state.demoMode;
-    setLogs((rows) => [{
-      time: new Date().toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" }),
-      event, status: demoMode ? "demo" : "pending",
-      detail: demoMode ? `Simulado local: ${JSON.stringify(payload)}` : `POST ${webhooks[event] || "sin endpoint"}`
-    }, ...rows]);
-    if (!demoMode && webhooks[event]) {
-      try {
-        await fetch(webhooks[event], { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
-        setLogs((rows) => [{ time: new Date().toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" }), event, status: "ok", detail: `Enviado a ${webhooks[event]}` }, ...rows]);
-      } catch (err) {
-        setLogs((rows) => [{ time: new Date().toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" }), event, status: "error", detail: String((err as Error)?.message || err) }, ...rows]);
-      }
-    }
   };
   return (
     <div className="grid">
@@ -1872,7 +1885,6 @@ function SettingsView({ state }: { state: BackofficeState }) {
               <p style={{ margin: "6px 0", color: "var(--muted)" }}>{receiptConfig.printer}<br />IP/Estación: {receiptConfig.printerIp}<br />Papel: {receiptConfig.paperWidth}<br />Modo: {receiptConfig.printMode}</p>
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                 <button className="btn primary" onClick={printReceipt}>Imprimir prueba</button>
-                <button className="btn ghost" onClick={() => alert("Conexión demo OK")}>Test conexión</button>
               </div>
             </div>
           )}
@@ -1880,51 +1892,11 @@ function SettingsView({ state }: { state: BackofficeState }) {
       </div>
       <div className="two">
         <div className="panel print-target">
-          <div className="panel-head"><h2>Preview ticket moderno</h2><span className="badge">80mm</span></div>
-          <ReceiptPreview receiptConfig={receiptConfig} restaurant={restaurant} />
+          <div className="panel-head"><h2>Vista previa boleta</h2><span className="badge">80mm</span></div>
+          <ReceiptPreview receiptConfig={receiptConfig} restaurant={restaurant} folio={currentFolio} />
         </div>
         <div className="panel">
-          <h2>Conexiones</h2>
-          <div className="demo-banner" style={{ marginBottom: 12 }}>
-            <b><span className={`status-dot ${state.demoMode ? "" : "off"}`} />{state.demoMode ? "Demo local activo" : "Modo n8n real"}</b>
-            <p style={{ margin: "6px 0 0", color: "var(--muted)" }}>En demo los botones funcionan sin n8n. Desactiva demo para usar URLs reales.</p>
-            <button className="btn ghost" style={{ marginTop: 10 }} onClick={() => state.setDemoMode(!state.demoMode)}>
-              {state.demoMode ? "Cambiar a n8n real" : "Volver a demo local"}
-            </button>
-          </div>
-          <div className="endpoint-grid">
-            {Object.entries(webhooks).map(([key, value]) => (
-              <div className="endpoint-row" key={key}>
-                <b>{key}</b>
-                <input className="input" value={value} onChange={(e) => updateWebhook(key, e.target.value)} />
-                <button className="btn primary" onClick={() => simulateWebhook(key)}>Test</button>
-              </div>
-            ))}
-          </div>
-          <div className="list" style={{ marginTop: 14 }}>
-            <div className="row">
-              <span className="badge green">n8n</span>
-              <div className="row-main"><b>Webhooks configurables</b><small>Pedidos, llamados, cocina, cobro, reseñas, boleta y caja.</small></div>
-              <button className="btn ghost" onClick={() => simulateWebhook("orderCreate")}>Simular pedido</button>
-            </div>
-            <div className="row">
-              <span className="badge blue">QR</span>
-              <div className="row-main"><b>Tokens de mesa</b><small>Mapeo token → mesa → zona → sesión.</small></div>
-              <button className="btn ghost" onClick={() => simulateWebhook("qrScan")}>Simular scan</button>
-            </div>
-            <div className="row">
-              <span className="badge">Print</span>
-              <div className="row-main"><b>{receiptConfig.printer}</b><small>Salida térmica. Demo usa window.print().</small></div>
-              <button className="btn ghost" onClick={() => simulateWebhook("receiptPrint")}>Test print</button>
-            </div>
-          </div>
-          <h2 style={{ marginTop: 16 }}>Logs</h2>
-          <div className="integration-log">
-            {logs.map((l, idx) => (
-              <div className="log-row" key={idx}><b>{l.time} · {l.event} · {l.status}</b><br />{l.detail}</div>
-            ))}
-          </div>
-          <h2 style={{ marginTop: 16 }}>Permisos por rol</h2>
+          <h2>Permisos por rol</h2>
           <table className="permission-table">
             <thead><tr><th>Módulo</th><th>Admin</th><th>Camarero</th><th>Cocina</th><th>Caja</th></tr></thead>
             <tbody>
@@ -1939,22 +1911,14 @@ function SettingsView({ state }: { state: BackofficeState }) {
               ))}
             </tbody>
           </table>
-          <h2 style={{ marginTop: 16 }}>Endpoints n8n</h2>
-          <pre className="audit">{`POST /webhook/order-create
-POST /webhook/camarero-call
-POST /webhook/kitchen-call
-POST /webhook/bill-request
-POST /webhook/receipt-print
-POST /webhook/feedback
-POST /webhook/cash-close`}</pre>
         </div>
       </div>
       <div className="panel">
         <div className="panel-head"><h2>Preparar para producción</h2><span className="badge red">Irreversible</span></div>
-        <p style={{ color: "var(--muted)" }}>Limpia los datos demo para empezar con información real del negocio.</p>
+        <p style={{ color: "var(--muted)" }}>Limpia los datos de ejemplo para empezar con información real del negocio.</p>
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 12 }}>
-          <button className="btn danger" onClick={() => { if(confirm("¿Eliminar toda la carta demo? Esta acción no se puede deshacer.")) { void state.clearDemoData(); } }}>
-            Limpiar carta demo
+          <button className="btn danger" onClick={() => { if(confirm("¿Eliminar toda la carta de ejemplo? Esta acción no se puede deshacer.")) { void state.clearDemoData(); } }}>
+            Limpiar carta de ejemplo
           </button>
         </div>
         <p style={{ color: "var(--dim)", fontSize: 12, marginTop: 10 }}>
@@ -2086,7 +2050,7 @@ export default function GastroAdmin({ authStaff, onSignOut }: GastroAdminProps) 
       case "kitchen": return <KitchenView state={state} role={role} />;
       case "calls": return <CallsView role={role} staffId={staffId} state={state} />;
       case "messages": return <MessagesView role={role} staffId={staffId} state={state} />;
-      case "sales": return <><CashClosingView state={state} staffId={staffId} /><SalesView /></>;
+      case "sales": return <><CashClosingView state={state} staffId={staffId} /><SalesView state={state} /></>;
       case "staff": return <StaffView state={state} />;
       case "inventory": return <InventoryView state={state} />;
       case "qr": return <QRView state={state} />;
