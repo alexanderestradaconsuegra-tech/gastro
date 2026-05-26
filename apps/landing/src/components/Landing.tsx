@@ -312,7 +312,8 @@ export default function Landing({ n8nBase, adminUrl }: { n8nBase?: string; admin
       <nav className="nav">
         <div className="container nav-in">
           <a href="#top" className="brand">
-            HOLU<small>SISTEMA DE RESTAURANTE</small>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="https://assets.zyrosite.com/rvH9B7W9kUvvSHwW/holu-logo-cIEzv6scenVM9k3O.png" alt="HOLU" style={{ height: 40, display: "block" }} />
           </a>
           <div className="nav-links">
             <a href="#modulos">Módulos</a>
@@ -329,7 +330,7 @@ export default function Landing({ n8nBase, adminUrl }: { n8nBase?: string; admin
           {/* LEFT */}
           <div>
             <div className="eyebrow">Simple · Rápido · Todo conectado</div>
-            <h1>El caos del restaurante termina con HOLU.</h1>
+            <h1>El caos del restaurante termina con <span style={{ color: "var(--gold2)" }}>HOLU</span>.</h1>
             <p>HOLU es la forma fácil de organizar tu restaurante: mesas, pedidos, camareros, cocina, caja, propinas y clientes conectados en una sola app.</p>
             <div className="cta-row">
               <a className="btn primary" href="#demo">Probar HOLU</a>
@@ -533,7 +534,7 @@ export default function Landing({ n8nBase, adminUrl }: { n8nBase?: string; admin
         <div className="container">
           <div className="final-box">
             <div className="eyebrow">El restaurante moderno empieza aquí</div>
-            <h2>El restaurante moderno funciona con HOLU.</h2>
+            <h2>El restaurante moderno funciona con <span style={{ color: "var(--gold2)" }}>HOLU</span>.</h2>
             <p>Clientes pidiendo desde la mesa, camareros conectados, cocina sincronizada, caja organizada y autoservicio funcionando en tiempo real.</p>
             <a className="btn primary" href="/demo">Probar demo gratis</a>
           </div>
@@ -542,7 +543,7 @@ export default function Landing({ n8nBase, adminUrl }: { n8nBase?: string; admin
 
       <footer className="footer">
         <div className="container footer-in">
-          <span>© {new Date().getFullYear()} HOLU. El restaurante fácil.</span>
+          <span>© {new Date().getFullYear()} <span style={{ color: "var(--gold2)" }}>HOLU</span>. El restaurante fácil.</span>
           <span>Mesas · Camareros · Cocina · Administración · IA · Analítica</span>
         </div>
       </footer>
