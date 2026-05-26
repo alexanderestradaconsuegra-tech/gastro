@@ -27,19 +27,19 @@ const money = (n: number | string | undefined) =>
   `$${Number(n || 0).toLocaleString("es-CL")}`;
 
 const RESTAURANT = {
-  name: "NIDO",
-  legalName: "NIDO SpA",
+  name: "HOLU",
+  legalName: "HOLU SpA",
   rut: "76.543.210-9",
   address: "Av. Italia 1450, Providencia, Santiago",
   phone: "+56 2 2345 6789",
-  website: "nido.cl",
+  website: "holu.app",
   location: "Santiago · Salón Principal",
   service: "Cena",
 };
 
 const RECEIPT_CONFIG = {
   title: "BOLETA ELECTRÓNICA",
-  footer: "Gracias por visitar NIDO · Vuelve pronto",
+  footer: "Gracias por visitar HOLU · Vuelve pronto",
   taxLabel: "IVA incluido",
   showWaiter: true,
   showQr: true,
@@ -575,7 +575,7 @@ function TableReceipt({ table, waiterName, folio }: { table: TableWithTip; waite
         <div className="receipt-qr" />
         <div className="center muted2">Escanea para reseña Google</div>
         <div className="dash" />
-        <div className="center muted2">Gracias por visitar NIDO · Vuelve pronto</div>
+        <div className="center muted2">Gracias por visitar HOLU · Vuelve pronto</div>
       </div>
     </div>
   );
@@ -1979,7 +1979,7 @@ function LukaChat({ authStaff, onClose }: { authStaff?: StaffProfile; onClose: (
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 16px", borderBottom: "1px solid var(--line)" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <div style={{ width: 36, height: 36, borderRadius: 14, background: "linear-gradient(135deg,var(--gold),var(--gold2))", display: "grid", placeItems: "center", color: "#171006" }}>{icons.spark}</div>
-          <div><b style={{ fontSize: 15 }}>Luka</b><small style={{ display: "block", color: "var(--muted)", fontSize: 11 }}>Asistente NIDO</small></div>
+          <div><b style={{ fontSize: 15 }}>Luka</b><small style={{ display: "block", color: "var(--muted)", fontSize: 11 }}>Asistente HOLU</small></div>
         </div>
         <button className="btn ghost" style={{ padding: "6px 12px", fontSize: 12 }} onClick={onClose}>Cerrar</button>
       </div>

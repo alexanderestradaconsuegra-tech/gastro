@@ -12,7 +12,7 @@ type Tab = "home" | "menu" | "order" | "waiter" | "bill" | "feedback" | "ai";
 // ── Constants ────────────────────────────────────────────────────────────────
 
 const RESTAURANT = {
-  name: "NIDO",
+  name: "HOLU",
   concept: "Cocina italiana de autor",
   city: "Santiago",
   googleReviewUrl: "https://g.page/r/CODIGO-DE-RESTAURANTE/review",
@@ -701,7 +701,7 @@ function Assistant({
   callWaiter: (r: string) => void;
 }) {
   const [msgs, setMsgs] = useState<AiMsg[]>([
-    { role: "ai", text: "Soy Luka, tu asistente en NIDO. Puedo recomendarte platos, llamar al camarero, o pedir la cuenta. ¿En qué te ayudo?" },
+    { role: "ai", text: "Soy Luka, tu asistente en HOLU. Puedo recomendarte platos, llamar al camarero, o pedir la cuenta. ¿En qué te ayudo?" },
   ]);
   const [text, setText] = useState("");
   const [thinking, setThinking] = useState(false);

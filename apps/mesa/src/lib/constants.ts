@@ -1,5 +1,5 @@
 export const RESTAURANT_ID = "nido";
-export const RESTAURANT_NAME = "Nido";
+export const RESTAURANT_NAME = "HOLU";
 
 // Fallback QR→table mapping when Supabase is unavailable
 export const QR_TABLES: Record<string, { tableId: number; tableLabel: string; zone: string }> = {
