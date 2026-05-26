@@ -1,21 +1,24 @@
-# ── Stage 1: Install dependencies ──────────────────────────────
+# ── Stage 1: Clone + Install ───────────────────────────────────
 FROM node:20-alpine AS deps
 WORKDIR /app
 
-RUN apk add --no-cache libc6-compat
+RUN apk add --no-cache libc6-compat git
 
-ARG CACHEBUST=1
+ARG CACHEBUST=2
 RUN echo "cachebust=$CACHEBUST"
 
-COPY package*.json ./
+RUN git clone --depth=1 --branch claude/integrate-systems-n8n-J1yuM \
+    https://github.com/alexanderestradaconsuegra-tech/gastro.git /repo
+
+WORKDIR /repo/apps/landing
 RUN npm ci
 
 # ── Stage 2: Build ─────────────────────────────────────────────
 FROM node:20-alpine AS builder
-WORKDIR /app
+WORKDIR /repo/apps/landing
 
-COPY --from=deps /app/node_modules ./node_modules
-COPY . .
+COPY --from=deps /repo/apps/landing/node_modules ./node_modules
+COPY --from=deps /repo/apps/landing .
 
 ARG N8N_WEBHOOK_BASE_URL
 ARG ADMIN_URL
@@ -37,9 +40,8 @@ ENV PORT=3002
 RUN addgroup --system --gid 1001 nodejs \
  && adduser  --system --uid 1001 nextjs
 
-COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
-COPY --from=builder --chown=nextjs:nodejs /app/.next/static    ./.next/static
-COPY --from=builder --chown=nextjs:nodejs /app/public          ./public
+COPY --from=builder --chown=nextjs:nodejs /repo/apps/landing/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /repo/apps/landing/.next/static    ./.next/static
 
 USER nextjs
 
