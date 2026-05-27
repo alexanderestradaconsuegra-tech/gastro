@@ -1,0 +1,1058 @@
+{
+  "name": "HOLU - Todos los Webhooks",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "order-create",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "7dc20f31-86d5-4af0-a20e-d56990517288",
+      "name": "Webhook - Order Create",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [200, 100],
+      "webhookId": "order-create"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ── Validate & Transform ─────────────────────────────────────\nconst body = $input.first().json.body ?? $input.first().json;\n\nconst required = ['restaurant_id', 'qr_token', 'items'];\nfor (const field of required) {\n  if (!body[field]) throw new Error(`Missing required field: ${field}`);\n}\n\nif (!Array.isArray(body.items) || body.items.length === 0) {\n  throw new Error('items must be a non-empty array');\n}\n\nfor (const item of body.items) {\n  if (!item.menu_item_id || !item.dish_name || !item.unit_price) {\n    throw new Error('Each item requires menu_item_id, dish_name and unit_price');\n  }\n  if (typeof item.qty !== 'number' || item.qty < 1) item.qty = 1;\n}\n\nconst digits = String(Math.floor(Math.random() * 10000)).padStart(4, '0');\nconst orderId = `ORD-${digits}`;\nconst sessionId = body.session_id || `SES-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;\nconst total = body.items.reduce((sum, item) => sum + (item.unit_price * (item.qty ?? 1)), 0);\n\nreturn [{\n  json: {\n    orderId,\n    sessionId,\n    restaurant_id: body.restaurant_id,\n    qr_token: body.qr_token,\n    table_id: body.table_id ?? null,\n    waiter_id: body.waiter_id ?? null,\n    notes: body.notes ?? null,\n    channel: body.channel ?? 'QR Mesa',\n    priority: body.priority ?? 'Normal',\n    eta_minutes: body.eta_minutes ?? 18,\n    total,\n    items: body.items\n  }\n}];"
+      },
+      "id": "9514965f-3990-42d3-8abd-6e8b1166d13d",
+      "name": "Validate & Transform",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [440, 100]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/sessions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey",        "value": "={{ $env.SUPABASE_SERVICE_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_SERVICE_KEY }}" },
+            { "name": "Content-Type",  "value": "application/json" },
+            { "name": "Prefer",        "value": "resolution=merge-duplicates,return=representation" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"id\": \"{{ $json.sessionId }}\",\n  \"restaurant_id\": \"{{ $json.restaurant_id }}\",\n  \"table_id\": {{ $json.table_id !== null ? $json.table_id : 'null' }},\n  \"qr_token\": \"{{ $json.qr_token }}\",\n  \"status\": \"active\"\n}",
+        "options": {}
+      },
+      "id": "a7f8db62-6685-4ae9-bb6b-71af7fce5384",
+      "name": "Insert Session",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [680, 100]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/orders",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey",        "value": "={{ $env.SUPABASE_SERVICE_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_SERVICE_KEY }}" },
+            { "name": "Content-Type",  "value": "application/json" },
+            { "name": "Prefer",        "value": "return=representation" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"id\": \"{{ $('Validate & Transform').item.json.orderId }}\",\n  \"restaurant_id\": \"{{ $('Validate & Transform').item.json.restaurant_id }}\",\n  \"session_id\": \"{{ $('Validate & Transform').item.json.sessionId }}\",\n  \"table_id\": {{ $('Validate & Transform').item.json.table_id !== null ? $('Validate & Transform').item.json.table_id : 'null' }},\n  \"waiter_id\": {{ $('Validate & Transform').item.json.waiter_id ? '\"' + $('Validate & Transform').item.json.waiter_id + '\"' : 'null' }},\n  \"status\": \"received\",\n  \"priority\": \"{{ $('Validate & Transform').item.json.priority }}\",\n  \"channel\": \"{{ $('Validate & Transform').item.json.channel }}\",\n  \"eta_minutes\": {{ $('Validate & Transform').item.json.eta_minutes }},\n  \"notes\": {{ $('Validate & Transform').item.json.notes ? '\"' + $('Validate & Transform').item.json.notes + '\"' : 'null' }},\n  \"total\": {{ $('Validate & Transform').item.json.total }}\n}",
+        "options": {}
+      },
+      "id": "131927e7-1d60-4709-8a66-a7d94c56ae13",
+      "name": "Insert Order",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [920, 100]
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $('Validate & Transform').item.json;\nconst orderId = data.orderId;\n\nconst orderItems = data.items.map(item => ({\n  order_id: orderId,\n  menu_item_id: item.menu_item_id,\n  dish_name: item.dish_name,\n  qty: item.qty ?? 1,\n  unit_price: item.unit_price,\n  status: 'pending'\n}));\n\nreturn [{ json: { orderItems, orderId, restaurant_id: data.restaurant_id, qr_token: data.qr_token } }];"
+      },
+      "id": "1979108a-0eea-441c-9745-e0b93e3242c8",
+      "name": "Build Items Payload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1160, 100]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/order_items",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey",        "value": "={{ $env.SUPABASE_SERVICE_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_SERVICE_KEY }}" },
+            { "name": "Content-Type",  "value": "application/json" },
+            { "name": "Prefer",        "value": "return=representation" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.orderItems) }}",
+        "options": {}
+      },
+      "id": "61573bcd-8de3-4b3f-80ad-99819b78f259",
+      "name": "Insert Order Items",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1400, 100]
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/tables?qr_token=eq.{{ $('Validate & Transform').item.json.qr_token }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey",        "value": "={{ $env.SUPABASE_SERVICE_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_SERVICE_KEY }}" },
+            { "name": "Content-Type",  "value": "application/json" },
+            { "name": "Prefer",        "value": "return=representation" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"status\": \"Pedido nuevo\",\n  \"last_activity_at\": \"{{ new Date().toISOString() }}\"\n}",
+        "options": {}
+      },
+      "id": "5646427a-81dc-49bc-8b53-90af058d7141",
+      "name": "Update Table - Pedido nuevo",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1640, 100]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"ok\": true,\n  \"orderId\": \"{{ $('Validate & Transform').item.json.orderId }}\",\n  \"sessionId\": \"{{ $('Validate & Transform').item.json.sessionId }}\"\n}",
+        "options": { "responseCode": 201 }
+      },
+      "id": "24614386-1be9-49de-a812-af480d657985",
+      "name": "Respond - Order OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1880, 100]
+    },
+
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "camarero-call",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "7b70eb8c-80ab-461e-93dd-3f11259f2f12",
+      "name": "Webhook - Camarero Call",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [200, 400],
+      "webhookId": "camarero-call"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ── Validate & determine priority ────────────────────────────\nconst body = $input.first().json.body ?? $input.first().json;\n\nconst required = ['restaurant_id', 'qr_token', 'call_type'];\nfor (const field of required) {\n  if (!body[field]) throw new Error(`Missing required field: ${field}`);\n}\n\nconst allowedTypes = ['Camarero','Agua','Cuenta','Alergia','Pregunta','Más pan','Servilletas','Otro'];\nif (!allowedTypes.includes(body.call_type)) {\n  body.call_type = body.call_type.slice(0, 50);\n}\n\nlet priority = body.priority ?? 'Normal';\nif (body.call_type === 'Alergia') priority = 'Crítica';\nelse if (body.call_type === 'Cuenta' || body.call_type === 'Camarero') priority = 'Alta';\n\nconst callId = 'C-' + Math.random().toString(36).slice(2, 10).toUpperCase();\n\nlet tableStatus = 'Camarero ocupado';\nif (body.call_type === 'Cuenta') tableStatus = 'Solicita cobro';\n\nreturn [{\n  json: {\n    callId,\n    restaurant_id: body.restaurant_id,\n    qr_token: body.qr_token,\n    table_id: body.table_id ?? null,\n    session_id: body.session_id ?? null,\n    waiter_id: body.waiter_id ?? null,\n    call_type: body.call_type,\n    priority,\n    message: body.message ?? null,\n    source: 'mesa',\n    tableStatus\n  }\n}];"
+      },
+      "id": "1ce41cfa-ce34-430a-893a-f069edf4dcae",
+      "name": "Validate & Set Priority",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [440, 400]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/calls",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey",        "value": "={{ $env.SUPABASE_SERVICE_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_SERVICE_KEY }}" },
+            { "name": "Content-Type",  "value": "application/json" },
+            { "name": "Prefer",        "value": "return=representation" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"id\": \"{{ $json.callId }}\",\n  \"restaurant_id\": \"{{ $json.restaurant_id }}\",\n  \"table_id\": {{ $json.table_id !== null ? $json.table_id : 'null' }},\n  \"session_id\": {{ $json.session_id ? '\"' + $json.session_id + '\"' : 'null' }},\n  \"waiter_id\": {{ $json.waiter_id ? '\"' + $json.waiter_id + '\"' : 'null' }},\n  \"source\": \"mesa\",\n  \"call_type\": \"{{ $json.call_type }}\",\n  \"priority\": \"{{ $json.priority }}\",\n  \"status\": \"Pendiente\",\n  \"message\": {{ $json.message ? '\"' + $json.message + '\"' : 'null' }}\n}",
+        "options": {}
+      },
+      "id": "01b5060e-435f-4027-9ea0-896a7114f699",
+      "name": "Insert Call",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [680, 400]
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/tables?qr_token=eq.{{ $('Validate & Set Priority').item.json.qr_token }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey",        "value": "={{ $env.SUPABASE_SERVICE_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_SERVICE_KEY }}" },
+            { "name": "Content-Type",  "value": "application/json" },
+            { "name": "Prefer",        "value": "return=representation" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"status\": \"{{ $('Validate & Set Priority').item.json.tableStatus }}\",\n  \"last_activity_at\": \"{{ new Date().toISOString() }}\"\n}",
+        "options": {}
+      },
+      "id": "3d910ff3-f164-439b-a688-b79bf2a8668e",
+      "name": "Update Table - Camarero",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [920, 400]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"ok\": true,\n  \"callId\": \"{{ $('Validate & Set Priority').item.json.callId }}\"\n}",
+        "options": { "responseCode": 201 }
+      },
+      "id": "785517b6-df39-4291-9654-2ca472273ec9",
+      "name": "Respond - Camarero OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1160, 400]
+    },
+
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "bill-request",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "3ce33d62-cafe-4c3f-b2e3-7c3e0f19e9ca",
+      "name": "Webhook - Bill Request",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [200, 700],
+      "webhookId": "bill-request"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ── Validate bill request payload ────────────────────────────\nconst body = $input.first().json.body ?? $input.first().json;\n\nconst required = ['restaurant_id', 'qr_token'];\nfor (const field of required) {\n  if (!body[field]) throw new Error(`Missing required field: ${field}`);\n}\n\nconst callId = 'C-' + Math.random().toString(36).slice(2, 10).toUpperCase();\n\nconst paymentMethod = body.payment_method ?? null;\nlet message = 'Solicita la cuenta';\nif (paymentMethod) {\n  const allowed = ['Efectivo', 'Tarjeta', 'Transferencia'];\n  if (allowed.includes(paymentMethod)) message = `Solicita la cuenta - Pago: ${paymentMethod}`;\n}\n\nreturn [{\n  json: {\n    callId,\n    restaurant_id: body.restaurant_id,\n    qr_token: body.qr_token,\n    table_id: body.table_id ?? null,\n    session_id: body.session_id ?? null,\n    waiter_id: body.waiter_id ?? null,\n    message\n  }\n}];"
+      },
+      "id": "ec0ae408-bf21-4c7c-a079-083b8e97a792",
+      "name": "Validate Bill Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [440, 700]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/calls",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey",        "value": "={{ $env.SUPABASE_SERVICE_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_SERVICE_KEY }}" },
+            { "name": "Content-Type",  "value": "application/json" },
+            { "name": "Prefer",        "value": "return=representation" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"id\": \"{{ $json.callId }}\",\n  \"restaurant_id\": \"{{ $json.restaurant_id }}\",\n  \"table_id\": {{ $json.table_id !== null ? $json.table_id : 'null' }},\n  \"session_id\": {{ $json.session_id ? '\"' + $json.session_id + '\"' : 'null' }},\n  \"waiter_id\": {{ $json.waiter_id ? '\"' + $json.waiter_id + '\"' : 'null' }},\n  \"source\": \"mesa\",\n  \"call_type\": \"Solicita cobro\",\n  \"priority\": \"Alta\",\n  \"status\": \"Pendiente\",\n  \"message\": \"{{ $json.message }}\"\n}",
+        "options": {}
+      },
+      "id": "54ccabb2-d503-43ab-920e-c71fafae0525",
+      "name": "Insert Bill Call",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [680, 700]
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/tables?qr_token=eq.{{ $('Validate Bill Request').item.json.qr_token }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey",        "value": "={{ $env.SUPABASE_SERVICE_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_SERVICE_KEY }}" },
+            { "name": "Content-Type",  "value": "application/json" },
+            { "name": "Prefer",        "value": "return=representation" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"status\": \"Solicita cobro\",\n  \"last_activity_at\": \"{{ new Date().toISOString() }}\"\n}",
+        "options": {}
+      },
+      "id": "48d698e6-79ad-4ca9-989e-7b82ea168864",
+      "name": "Update Table - Solicita Cobro",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [920, 700]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"ok\": true,\n  \"callId\": \"{{ $('Validate Bill Request').item.json.callId }}\"\n}",
+        "options": { "responseCode": 201 }
+      },
+      "id": "f3de3cb6-843f-41c7-86d4-6586590fdbdc",
+      "name": "Respond - Bill OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1160, 700]
+    },
+
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "feedback",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "93e1d14a-98c0-493a-ba23-19790ca98d8f",
+      "name": "Webhook - Feedback",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [200, 1000],
+      "webhookId": "feedback"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ── Validate rating and sanitize comment ─────────────────────\nconst body = $input.first().json.body ?? $input.first().json;\n\nif (!body.restaurant_id) throw new Error('Missing required field: restaurant_id');\n\nconst rating = parseInt(body.rating, 10);\nif (isNaN(rating) || rating < 1 || rating > 5) throw new Error('rating must be an integer between 1 and 5');\n\nlet comment = null;\nif (body.comment && typeof body.comment === 'string') {\n  comment = body.comment\n    .replace(/<[^>]*>/g, '')\n    .replace(/[\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F]/g, '')\n    .trim()\n    .slice(0, 1000);\n  if (comment.length === 0) comment = null;\n}\n\nconst allowedSources = ['table_qr', 'admin', 'whatsapp', 'email'];\nconst source = allowedSources.includes(body.source) ? body.source : 'table_qr';\n\nreturn [{\n  json: {\n    restaurant_id: body.restaurant_id,\n    session_id: body.session_id ?? null,\n    table_id: body.table_id ?? null,\n    waiter_id: body.waiter_id ?? null,\n    rating,\n    comment,\n    source\n  }\n}];"
+      },
+      "id": "0087dfe6-7295-451b-b594-422d8cc30149",
+      "name": "Validate Feedback",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [440, 1000]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/reviews",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey",        "value": "={{ $env.SUPABASE_SERVICE_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_SERVICE_KEY }}" },
+            { "name": "Content-Type",  "value": "application/json" },
+            { "name": "Prefer",        "value": "return=representation" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"restaurant_id\": \"{{ $json.restaurant_id }}\",\n  \"session_id\": {{ $json.session_id ? '\"' + $json.session_id + '\"' : 'null' }},\n  \"table_id\": {{ $json.table_id !== null ? $json.table_id : 'null' }},\n  \"waiter_id\": {{ $json.waiter_id ? '\"' + $json.waiter_id + '\"' : 'null' }},\n  \"rating\": {{ $json.rating }},\n  \"comment\": {{ $json.comment ? '\"' + $json.comment.replace(/\"/g, '\\\\\"') + '\"' : 'null' }},\n  \"source\": \"{{ $json.source }}\"\n}",
+        "options": {}
+      },
+      "id": "70ebbde3-2875-404e-bbee-e87a201046c1",
+      "name": "Insert Review",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [680, 1000]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={ \"ok\": true }",
+        "options": { "responseCode": 201 }
+      },
+      "id": "57184919-1141-460c-8339-8533f0559c11",
+      "name": "Respond - Feedback OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [920, 1000]
+    },
+
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "demo-register",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-demo-register",
+      "name": "Webhook - Demo Register",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [200, 1300],
+      "webhookId": "demo-register"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ── Validate & Prepare ──────────────────────────────────────────\nconst body = $input.first().json.body ?? $input.first().json;\n\nconst name  = String(body.name  ?? '').trim();\nconst email = String(body.email ?? '').trim().toLowerCase();\nconst phone = String(body.phone ?? '').trim();\n\nif (!name)  throw new Error('El nombre es requerido');\nif (!email) throw new Error('El correo es requerido');\nif (!/^[^@]+@[^@]+\\.[^@]+$/.test(email)) throw new Error('Correo inválido');\n\nreturn [{ json: { name, email, phone } }];"
+      },
+      "id": "code-validate-demo",
+      "name": "Validate Demo Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [440, 1300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/prospects",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey",        "value": "={{ $env.SUPABASE_SERVICE_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_SERVICE_KEY }}" },
+            { "name": "Content-Type",  "value": "application/json" },
+            { "name": "Prefer",        "value": "resolution=merge-duplicates,return=representation" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"name\":   \"{{ $json.name }}\",\n  \"email\":  \"{{ $json.email }}\",\n  \"phone\":  \"{{ $json.phone }}\",\n  \"source\": \"landing\",\n  \"status\": \"demo_sent\"\n}",
+        "options": {}
+      },
+      "id": "http-save-prospect",
+      "name": "Save Prospect",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [680, 1300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const prospect = $('Validate Demo Input').first().json;\n\nconst demoUrl   = $env.ADMIN_URL ?? 'https://tu-admin.holu.app';\nconst demoEmail = 'demo@holu.app';\nconst demoPass  = 'holu2026';\nconst subject   = '🎉 Tu acceso a HOLU Demo está listo';\n\nconst html = `<!DOCTYPE html>\n<html lang=\"es\">\n<head><meta charset=\"UTF-8\"><style>\n  body{font-family:Inter,sans-serif;background:#060605;color:#fff8ed;margin:0;padding:0}\n  .wrap{max-width:560px;margin:0 auto;padding:40px 24px}\n  .logo{font-size:32px;font-weight:800;letter-spacing:-.05em;color:#f0d48d}\n  .logo small{display:block;font-size:11px;letter-spacing:.2em;color:#6a6058;font-weight:500;margin-top:4px}\n  h1{font-size:26px;font-weight:700;margin:28px 0 12px;line-height:1.2}\n  p{color:#b0a396;line-height:1.7;font-size:15px;margin:0 0 16px}\n  .creds{background:#13110d;border:1px solid rgba(240,212,141,.2);border-radius:16px;padding:20px 24px;margin:24px 0}\n  .creds-row{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.06);font-size:14px}\n  .creds-row:last-child{border-bottom:none}\n  .lbl{color:#6a6058}.val{color:#fff8ed;font-weight:600}\n  .btn{display:inline-block;background:linear-gradient(135deg,#c8a96b,#f0d48d);color:#160f02;border-radius:14px;padding:14px 28px;font-weight:700;font-size:15px;text-decoration:none;margin:8px 0 24px}\n  .footer{color:#3a3530;font-size:12px;margin-top:40px;border-top:1px solid #1a1814;padding-top:20px}\n</style></head>\n<body><div class=\"wrap\">\n  <div class=\"logo\">HOLU<small>SISTEMA DE RESTAURANTE</small></div>\n  <h1>Hola ${prospect.name}, tu demo está lista 🎉</h1>\n  <p>Ya puedes explorar HOLU completo: mesas QR, pedidos en tiempo real, cocina, caja y administración.</p>\n  <div class=\"creds\">\n    <div class=\"creds-row\"><span class=\"lbl\">URL del sistema</span><span class=\"val\">${demoUrl}</span></div>\n    <div class=\"creds-row\"><span class=\"lbl\">Usuario</span><span class=\"val\">${demoEmail}</span></div>\n    <div class=\"creds-row\"><span class=\"lbl\">Contraseña</span><span class=\"val\">${demoPass}</span></div>\n  </div>\n  <a class=\"btn\" href=\"${demoUrl}\">Entrar a HOLU ahora →</a>\n  <p style=\"font-size:13px\">Sin tarjeta, sin compromiso. La demo se reinicia automáticamente.</p>\n  <p>¿Listo para tu restaurante real? <a href=\"https://wa.me/56992103974\" style=\"color:#f0d48d\">Escríbenos por WhatsApp</a>.</p>\n  <div class=\"footer\">© ${new Date().getFullYear()} HOLU · holu.app</div>\n</div></body></html>`;\n\nreturn [{ json: { to: prospect.email, subject, html } }];"
+      },
+      "id": "code-build-demo-email",
+      "name": "Build Demo Email",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [920, 1300]
+    },
+    {
+      "parameters": {
+        "fromEmail": "={{ $env.SMTP_FROM ?? 'holu@holu.app' }}",
+        "toEmail": "={{ $json.to }}",
+        "subject": "={{ $json.subject }}",
+        "emailFormat": "html",
+        "html": "={{ $json.html }}",
+        "options": {}
+      },
+      "id": "send-demo-email",
+      "name": "Send Demo Email",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [1160, 1300],
+      "credentials": {
+        "smtp": { "id": "smtp-holu", "name": "SMTP HOLU" }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"ok\": true,\n  \"message\": \"Acceso demo enviado a {{ $('Validate Demo Input').first().json.email }}\"\n}",
+        "options": {}
+      },
+      "id": "respond-demo-ok",
+      "name": "Respond - Demo OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1400, 1300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseCode": 400,
+        "responseBody": "={ \"ok\": false, \"error\": \"{{ $json.message }}\" }",
+        "options": {}
+      },
+      "id": "respond-demo-error",
+      "name": "Respond - Demo Error",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [680, 1500]
+    },
+
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "staff-create",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "46c1cad6-a745-4a7f-997b-a460466fd2fe",
+      "name": "Webhook - Staff Create",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [200, 1700],
+      "webhookId": "staff-create"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ── Validate payload ─────────────────────────────────────────\nconst body = $input.first().json.body ?? $input.first().json;\n\nconst required = ['restaurant_id', 'name', 'email', 'password', 'role'];\nfor (const field of required) {\n  if (!body[field] || String(body[field]).trim() === '') throw new Error(`Missing required field: ${field}`);\n}\n\nconst validRoles = ['admin', 'camarero', 'cocina', 'caja'];\nif (!validRoles.includes(body.role)) throw new Error(`Invalid role. Must be one of: ${validRoles.join(', ')}`);\n\nif (!/^[^@]+@[^@]+\\.[^@]+$/.test(body.email)) throw new Error('Invalid email address');\n\nif (String(body.password).length < 8) throw new Error('Password must be at least 8 characters');\n\nreturn [{\n  json: {\n    restaurant_id: body.restaurant_id.trim(),\n    name:          body.name.trim(),\n    email:         body.email.trim().toLowerCase(),\n    password:      body.password,\n    role:          body.role,\n    pin_hash:      body.pin_hash  || null,\n    shift:         body.shift     || null,\n    phone:         body.phone     || null\n  }\n}];"
+      },
+      "id": "3c58cc65-5b9f-494b-abd0-0f34b870faa1",
+      "name": "Validate Staff Payload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [440, 1700]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/auth/v1/admin/users",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey",        "value": "={{ $env.SUPABASE_SERVICE_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_SERVICE_KEY }}" },
+            { "name": "Content-Type",  "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"email\":         \"{{ $json.email }}\",\n  \"password\":      \"{{ $json.password }}\",\n  \"email_confirm\": true,\n  \"user_metadata\": { \"restaurant_id\": \"{{ $json.restaurant_id }}\" }\n}",
+        "options": {}
+      },
+      "id": "32673c0a-d240-4681-badf-dd9ad2e0fc66",
+      "name": "Create Auth User",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [680, 1700]
+    },
+    {
+      "parameters": {
+        "jsCode": "const res = $input.first().json;\nif (res.error || res.msg) throw new Error(res.msg ?? res.error ?? 'Auth user creation failed');\nif (!res.id) throw new Error('Auth user creation failed: no user ID returned');\n\nconst prev = $('Validate Staff Payload').item.json;\nreturn [{ json: { ...prev, auth_user_id: res.id } }];"
+      },
+      "id": "68af1cc0-6495-4e74-b357-c52d5db46f9c",
+      "name": "Check Auth Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [920, 1700]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/staff",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey",        "value": "={{ $env.SUPABASE_SERVICE_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_SERVICE_KEY }}" },
+            { "name": "Content-Type",  "value": "application/json" },
+            { "name": "Prefer",        "value": "return=representation" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"restaurant_id\": \"{{ $json.restaurant_id }}\",\n  \"name\":          \"{{ $json.name }}\",\n  \"email\":         \"{{ $json.email }}\",\n  \"role\":          \"{{ $json.role }}\",\n  \"pin_hash\":      {{ $json.pin_hash ? '\"' + $json.pin_hash + '\"' : 'null' }},\n  \"shift\":         {{ $json.shift ? '\"' + $json.shift + '\"' : 'null' }},\n  \"phone\":         {{ $json.phone ? '\"' + $json.phone + '\"' : 'null' }},\n  \"status\":        \"Activo\"\n}",
+        "options": {}
+      },
+      "id": "101fa078-f39f-4046-a157-44dbea4b2273",
+      "name": "Insert Staff Record",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1160, 1700]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"ok\": true,\n  \"auth_user_id\": \"{{ $('Check Auth Response').item.json.auth_user_id }}\",\n  \"email\": \"{{ $('Validate Staff Payload').item.json.email }}\",\n  \"role\": \"{{ $('Validate Staff Payload').item.json.role }}\"\n}",
+        "options": { "responseCode": 201 }
+      },
+      "id": "e8166c8c-6308-4688-98ad-66e1bc13d840",
+      "name": "Respond - Staff Created",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1400, 1700]
+    },
+
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "restaurant-onboard",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "782bd892-d08f-4d26-b879-d5b425ce1a65",
+      "name": "Webhook - Restaurant Onboard",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [200, 2000],
+      "webhookId": "restaurant-onboard"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ── Validate & Prepare ───────────────────────────────────────\nconst body = $input.first().json.body ?? $input.first().json;\n\nconst required = ['restaurantName', 'ownerName', 'ownerEmail', 'ownerPassword'];\nfor (const field of required) {\n  if (!body[field] || String(body[field]).trim() === '') throw new Error(`Missing required field: ${field}`);\n}\n\nif (!/^[^@]+@[^@]+\\.[^@]+$/.test(body.ownerEmail)) throw new Error('Invalid email address');\n\nconst baseSlug = body.restaurantName\n  .toLowerCase()\n  .normalize('NFD').replace(/[\\u0300-\\u036f]/g, '')\n  .replace(/[^a-z0-9]+/g, '-')\n  .replace(/^-+|-+$/g, '')\n  .slice(0, 40);\n\nconst suffix = Math.random().toString(36).slice(2, 6);\nconst restaurantId = `${baseSlug}-${suffix}`;\n\nreturn [{\n  json: {\n    restaurantId,\n    restaurantName: body.restaurantName.trim(),\n    legalName:      body.legalName?.trim()    || body.restaurantName.trim(),\n    rut:            body.rut?.trim()          || null,\n    address:        body.address?.trim()      || null,\n    phone:          body.phone?.trim()        || null,\n    website:        body.website?.trim()      || null,\n    ownerName:      body.ownerName.trim(),\n    ownerEmail:     body.ownerEmail.trim().toLowerCase(),\n    ownerPassword:  body.ownerPassword,\n    plan:           body.plan || 'starter'\n  }\n}];"
+      },
+      "id": "08c631a6-119a-463a-b385-1a2a83b3d26c",
+      "name": "Validate & Prepare",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [440, 2000]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/restaurants",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey",        "value": "={{ $env.SUPABASE_SERVICE_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_SERVICE_KEY }}" },
+            { "name": "Content-Type",  "value": "application/json" },
+            { "name": "Prefer",        "value": "return=representation" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"id\":         \"{{ $json.restaurantId }}\",\n  \"name\":       \"{{ $json.restaurantName }}\",\n  \"legal_name\": \"{{ $json.legalName }}\",\n  \"rut\":        {{ $json.rut ? '\"' + $json.rut + '\"' : 'null' }},\n  \"address\":    {{ $json.address ? '\"' + $json.address + '\"' : 'null' }},\n  \"phone\":      {{ $json.phone ? '\"' + $json.phone + '\"' : 'null' }},\n  \"website\":    {{ $json.website ? '\"' + $json.website + '\"' : 'null' }},\n  \"settings\":   {}\n}",
+        "options": {}
+      },
+      "id": "85fde9dc-a07c-48df-8401-747843d56b35",
+      "name": "Create Restaurant",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [680, 2000]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/auth/v1/admin/users",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey",        "value": "={{ $env.SUPABASE_SERVICE_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_SERVICE_KEY }}" },
+            { "name": "Content-Type",  "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"email\":          \"{{ $('Validate & Prepare').item.json.ownerEmail }}\",\n  \"password\":       \"{{ $('Validate & Prepare').item.json.ownerPassword }}\",\n  \"email_confirm\":  true,\n  \"user_metadata\":  { \"restaurant_id\": \"{{ $('Validate & Prepare').item.json.restaurantId }}\" }\n}",
+        "options": {}
+      },
+      "id": "0763f203-3632-4df1-951c-86a2986d61d0",
+      "name": "Create Owner Auth User",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [920, 2000]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/staff",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey",        "value": "={{ $env.SUPABASE_SERVICE_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_SERVICE_KEY }}" },
+            { "name": "Content-Type",  "value": "application/json" },
+            { "name": "Prefer",        "value": "return=representation" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"restaurant_id\": \"{{ $('Validate & Prepare').item.json.restaurantId }}\",\n  \"name\":         \"{{ $('Validate & Prepare').item.json.ownerName }}\",\n  \"email\":        \"{{ $('Validate & Prepare').item.json.ownerEmail }}\",\n  \"role\":         \"admin\",\n  \"shift\":        \"Full\",\n  \"status\":       \"Activo\"\n}",
+        "options": {}
+      },
+      "id": "01820810-1c22-4678-b662-8a94d772c9d8",
+      "name": "Create Admin Staff",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1160, 2000]
+    },
+    {
+      "parameters": {
+        "jsCode": "const rid = $('Validate & Prepare').item.json.restaurantId;\n\nconst tables = [\n  { table_number: 1, label: 'Mesa 1', zone: 'Salón',   qr_token: `${rid}-T1` },\n  { table_number: 2, label: 'Mesa 2', zone: 'Salón',   qr_token: `${rid}-T2` },\n  { table_number: 3, label: 'Mesa 3', zone: 'Salón',   qr_token: `${rid}-T3` },\n  { table_number: 4, label: 'Mesa 4', zone: 'Terraza', qr_token: `${rid}-T4` },\n  { table_number: 5, label: 'Mesa 5', zone: 'Terraza', qr_token: `${rid}-T5` }\n];\n\nreturn tables.map(t => ({ json: { restaurant_id: rid, ...t } }));"
+      },
+      "id": "631a8ec7-706d-45c8-8e73-191f0b6ccf15",
+      "name": "Build Default Tables",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1400, 2000]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/tables",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey",        "value": "={{ $env.SUPABASE_SERVICE_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_SERVICE_KEY }}" },
+            { "name": "Content-Type",  "value": "application/json" },
+            { "name": "Prefer",        "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {}
+      },
+      "id": "099e1025-6ad3-4d29-9a6a-b63e5bbbc5a2",
+      "name": "Insert Tables",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1640, 2000]
+    },
+    {
+      "parameters": {
+        "jsCode": "const allItems = $input.all();\nconst last = allItems[allItems.length - 1];\nreturn [{ json: last.json }];"
+      },
+      "id": "b788e274-2462-4f36-b28e-6b19aa22f924",
+      "name": "Wait All Tables",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1880, 2000]
+    },
+    {
+      "parameters": {
+        "jsCode": "const d = $('Validate & Prepare').item.json;\nconst adminUrl = $env.ADMIN_URL ?? 'https://tu-admin.holu.app';\nconst subject = `🎉 Tu restaurante ${d.restaurantName} ya está en HOLU`;\n\nconst html = `<!DOCTYPE html>\n<html lang=\"es\">\n<head><meta charset=\"UTF-8\"><style>\n  body{font-family:Inter,sans-serif;background:#060605;color:#fff8ed;margin:0;padding:0}\n  .wrap{max-width:560px;margin:0 auto;padding:40px 24px}\n  .logo{font-size:32px;font-weight:800;letter-spacing:-.05em;color:#f0d48d}\n  .logo small{display:block;font-size:11px;letter-spacing:.2em;color:#6a6058;font-weight:500;margin-top:4px}\n  h1{font-size:26px;font-weight:700;margin:28px 0 12px;line-height:1.2}\n  p{color:#b0a396;line-height:1.7;font-size:15px;margin:0 0 16px}\n  .box{background:#13110d;border:1px solid rgba(240,212,141,.2);border-radius:16px;padding:20px 24px;margin:24px 0;font-size:14px}\n  .row{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.06)}\n  .row:last-child{border-bottom:none}\n  .lbl{color:#6a6058}.val{color:#fff8ed;font-weight:600}\n  .btn{display:inline-block;background:linear-gradient(135deg,#c8a96b,#f0d48d);color:#160f02;border-radius:14px;padding:14px 28px;font-weight:700;font-size:15px;text-decoration:none;margin:8px 0 24px}\n  .footer{color:#3a3530;font-size:12px;margin-top:40px;border-top:1px solid #1a1814;padding-top:20px}\n</style></head>\n<body><div class=\"wrap\">\n  <div class=\"logo\">HOLU<small>SISTEMA DE RESTAURANTE</small></div>\n  <h1>¡Bienvenido, ${d.ownerName}!</h1>\n  <p><strong>${d.restaurantName}</strong> ya está activo en HOLU. Configura tu menú, mesas y personal desde el panel de administración.</p>\n  <div class=\"box\">\n    <div class=\"row\"><span class=\"lbl\">Restaurante</span><span class=\"val\">${d.restaurantName}</span></div>\n    <div class=\"row\"><span class=\"lbl\">ID del restaurante</span><span class=\"val\">${d.restaurantId}</span></div>\n    <div class=\"row\"><span class=\"lbl\">Email de acceso</span><span class=\"val\">${d.ownerEmail}</span></div>\n    <div class=\"row\"><span class=\"lbl\">Plan activo</span><span class=\"val\">${d.plan}</span></div>\n    <div class=\"row\"><span class=\"lbl\">URL de administración</span><span class=\"val\">${adminUrl}</span></div>\n  </div>\n  <a class=\"btn\" href=\"${adminUrl}/login\">Entrar al panel →</a>\n  <p style=\"font-size:13px\">Ya tienes 5 mesas creadas por defecto. Puedes renombrarlas y agregar más desde Configuración.</p>\n  <p>¿Tienes dudas? <a href=\"https://wa.me/56992103974\" style=\"color:#f0d48d\">Escríbenos por WhatsApp</a>.</p>\n  <div class=\"footer\">© ${new Date().getFullYear()} HOLU · holu.app</div>\n</div></body></html>`;\n\nreturn [{ json: { to: d.ownerEmail, subject, html } }];"
+      },
+      "id": "build-welcome-email-code",
+      "name": "Build Welcome Email",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2120, 2000]
+    },
+    {
+      "parameters": {
+        "fromEmail": "={{ $env.SMTP_FROM ?? 'holu@holu.app' }}",
+        "toEmail": "={{ $json.to }}",
+        "subject": "={{ $json.subject }}",
+        "emailFormat": "html",
+        "html": "={{ $json.html }}",
+        "options": {}
+      },
+      "id": "33f9eef9-c95d-4c98-a77a-d11805111775",
+      "name": "Send Welcome Email",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [2360, 2000],
+      "credentials": {
+        "smtp": { "id": "smtp-holu", "name": "SMTP HOLU" }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"ok\": true,\n  \"restaurant_id\": \"{{ $('Validate & Prepare').item.json.restaurantId }}\",\n  \"email\": \"{{ $('Validate & Prepare').item.json.ownerEmail }}\",\n  \"message\": \"Restaurante creado correctamente\"\n}",
+        "options": { "responseCode": 201 }
+      },
+      "id": "1b90bed0-c74b-4fb2-b7d9-610e583c2e02",
+      "name": "Respond - Onboard OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [2600, 2000]
+    },
+
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "luka-chat",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "4f730233-f1eb-4122-8ea3-5550a67b4513",
+      "name": "Webhook - Luka Chat",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [200, 2300],
+      "webhookId": "luka-chat"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            { "id": "1", "name": "message",       "value": "={{ ($input.first().json.body ?? $input.first().json).message ?? '' }}", "type": "string" },
+            { "id": "2", "name": "table_id",       "value": "={{ ($input.first().json.body ?? $input.first().json).table_id ?? null }}", "type": "number" },
+            { "id": "3", "name": "session_id",     "value": "={{ ($input.first().json.body ?? $input.first().json).session_id ?? '' }}", "type": "string" },
+            { "id": "4", "name": "qr_token",       "value": "={{ ($input.first().json.body ?? $input.first().json).qr_token ?? '' }}", "type": "string" },
+            { "id": "5", "name": "user_role",      "value": "={{ ($input.first().json.body ?? $input.first().json).user_role ?? 'cliente' }}", "type": "string" },
+            { "id": "6", "name": "restaurant_id",  "value": "={{ ($input.first().json.body ?? $input.first().json).restaurant_id ?? '' }}", "type": "string" },
+            { "id": "7", "name": "prompt",         "value": "={{ '[Mesa:' + (($input.first().json.body ?? $input.first().json).table_id ?? '?') + ' | Sesión:' + (($input.first().json.body ?? $input.first().json).session_id ?? '?') + ' | Rol:' + (($input.first().json.body ?? $input.first().json).user_role ?? 'cliente') + ']\\n' + (($input.first().json.body ?? $input.first().json).message ?? '') }}", "type": "string" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "ef97de9f-3cfb-4a29-b515-0c32ce56226b",
+      "name": "Extraer Contexto",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [440, 2300]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.prompt }}",
+        "options": {}
+      },
+      "id": "20800efa-c380-4183-b57a-ccc6cd5cb75e",
+      "name": "Luka AI",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [680, 2300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ reply: $json.output, ok: true }) }}",
+        "options": {}
+      },
+      "id": "30deb77c-505d-4521-a61a-723e85b833ae",
+      "name": "Respond - Luka Reply",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [920, 2300]
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4o-mini"
+        },
+        "options": {}
+      },
+      "id": "4fd33b28-80d0-422c-9a09-91a1d4d07694",
+      "name": "OpenAI Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [440, 2500],
+      "credentials": {
+        "openAiApi": { "id": "YOUR_OPENAI_CREDENTIAL_ID", "name": "OpenAI account" }
+      }
+    },
+    {
+      "parameters": {},
+      "id": "90911018-46aa-48ed-beec-35268e763bf1",
+      "name": "Simple Memory",
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [680, 2500]
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/menu_items?select=name,category,price,description,avg_prep_minutes,allergens,tags,available,wine_pair&available=eq.true&order=category",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey",        "value": "={{ $env.SUPABASE_SERVICE_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_SERVICE_KEY }}" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "c6668da2-b105-42b2-81b4-e8c5bc2e172b",
+      "name": "Obtener Menú",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [920, 2500]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.N8N_WEBHOOK_BASE_URL }}/webhook/camarero-call",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [{ "name": "Content-Type", "value": "application/json" }]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"restaurant_id\": \"{{ $('Extraer Contexto').first().json.restaurant_id }}\",\n  \"qr_token\": \"{{ $('Extraer Contexto').first().json.qr_token }}\",\n  \"table_id\": {{ $('Extraer Contexto').first().json.table_id }},\n  \"session_id\": \"{{ $('Extraer Contexto').first().json.session_id }}\",\n  \"call_type\": \"Camarero\",\n  \"message\": \"{{ $fromAI('reason', 'Motivo por el que el cliente llama al camarero', 'string') }}\",\n  \"source\": \"luka_ai\"\n}",
+        "options": {}
+      },
+      "id": "0439b99a-3db3-4849-8495-24a249576464",
+      "name": "Llamar Camarero",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1160, 2500]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.N8N_WEBHOOK_BASE_URL }}/webhook/bill-request",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [{ "name": "Content-Type", "value": "application/json" }]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"restaurant_id\": \"{{ $('Extraer Contexto').first().json.restaurant_id }}\",\n  \"qr_token\": \"{{ $('Extraer Contexto').first().json.qr_token }}\",\n  \"table_id\": {{ $('Extraer Contexto').first().json.table_id }},\n  \"session_id\": \"{{ $('Extraer Contexto').first().json.session_id }}\",\n  \"source\": \"luka_ai\"\n}",
+        "options": {}
+      },
+      "id": "168f5719-67e9-4f66-a5a2-0f2e5cae812b",
+      "name": "Solicitar Cuenta",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1400, 2500]
+    }
+  ],
+
+  "connections": {
+    "Webhook - Order Create": {
+      "main": [[{ "node": "Validate & Transform", "type": "main", "index": 0 }]]
+    },
+    "Validate & Transform": {
+      "main": [[{ "node": "Insert Session", "type": "main", "index": 0 }]]
+    },
+    "Insert Session": {
+      "main": [[{ "node": "Insert Order", "type": "main", "index": 0 }]]
+    },
+    "Insert Order": {
+      "main": [[{ "node": "Build Items Payload", "type": "main", "index": 0 }]]
+    },
+    "Build Items Payload": {
+      "main": [[{ "node": "Insert Order Items", "type": "main", "index": 0 }]]
+    },
+    "Insert Order Items": {
+      "main": [[{ "node": "Update Table - Pedido nuevo", "type": "main", "index": 0 }]]
+    },
+    "Update Table - Pedido nuevo": {
+      "main": [[{ "node": "Respond - Order OK", "type": "main", "index": 0 }]]
+    },
+
+    "Webhook - Camarero Call": {
+      "main": [[{ "node": "Validate & Set Priority", "type": "main", "index": 0 }]]
+    },
+    "Validate & Set Priority": {
+      "main": [[{ "node": "Insert Call", "type": "main", "index": 0 }]]
+    },
+    "Insert Call": {
+      "main": [[{ "node": "Update Table - Camarero", "type": "main", "index": 0 }]]
+    },
+    "Update Table - Camarero": {
+      "main": [[{ "node": "Respond - Camarero OK", "type": "main", "index": 0 }]]
+    },
+
+    "Webhook - Bill Request": {
+      "main": [[{ "node": "Validate Bill Request", "type": "main", "index": 0 }]]
+    },
+    "Validate Bill Request": {
+      "main": [[{ "node": "Insert Bill Call", "type": "main", "index": 0 }]]
+    },
+    "Insert Bill Call": {
+      "main": [[{ "node": "Update Table - Solicita Cobro", "type": "main", "index": 0 }]]
+    },
+    "Update Table - Solicita Cobro": {
+      "main": [[{ "node": "Respond - Bill OK", "type": "main", "index": 0 }]]
+    },
+
+    "Webhook - Feedback": {
+      "main": [[{ "node": "Validate Feedback", "type": "main", "index": 0 }]]
+    },
+    "Validate Feedback": {
+      "main": [[{ "node": "Insert Review", "type": "main", "index": 0 }]]
+    },
+    "Insert Review": {
+      "main": [[{ "node": "Respond - Feedback OK", "type": "main", "index": 0 }]]
+    },
+
+    "Webhook - Demo Register": {
+      "main": [[{ "node": "Validate Demo Input", "type": "main", "index": 0 }]]
+    },
+    "Validate Demo Input": {
+      "main": [[{ "node": "Save Prospect", "type": "main", "index": 0 }]],
+      "error": [[{ "node": "Respond - Demo Error", "type": "main", "index": 0 }]]
+    },
+    "Save Prospect": {
+      "main": [[{ "node": "Build Demo Email", "type": "main", "index": 0 }]]
+    },
+    "Build Demo Email": {
+      "main": [[{ "node": "Send Demo Email", "type": "main", "index": 0 }]]
+    },
+    "Send Demo Email": {
+      "main": [[{ "node": "Respond - Demo OK", "type": "main", "index": 0 }]]
+    },
+
+    "Webhook - Staff Create": {
+      "main": [[{ "node": "Validate Staff Payload", "type": "main", "index": 0 }]]
+    },
+    "Validate Staff Payload": {
+      "main": [[{ "node": "Create Auth User", "type": "main", "index": 0 }]]
+    },
+    "Create Auth User": {
+      "main": [[{ "node": "Check Auth Response", "type": "main", "index": 0 }]]
+    },
+    "Check Auth Response": {
+      "main": [[{ "node": "Insert Staff Record", "type": "main", "index": 0 }]]
+    },
+    "Insert Staff Record": {
+      "main": [[{ "node": "Respond - Staff Created", "type": "main", "index": 0 }]]
+    },
+
+    "Webhook - Restaurant Onboard": {
+      "main": [[{ "node": "Validate & Prepare", "type": "main", "index": 0 }]]
+    },
+    "Validate & Prepare": {
+      "main": [[{ "node": "Create Restaurant", "type": "main", "index": 0 }]]
+    },
+    "Create Restaurant": {
+      "main": [[{ "node": "Create Owner Auth User", "type": "main", "index": 0 }]]
+    },
+    "Create Owner Auth User": {
+      "main": [[{ "node": "Create Admin Staff", "type": "main", "index": 0 }]]
+    },
+    "Create Admin Staff": {
+      "main": [[{ "node": "Build Default Tables", "type": "main", "index": 0 }]]
+    },
+    "Build Default Tables": {
+      "main": [[{ "node": "Insert Tables", "type": "main", "index": 0 }]]
+    },
+    "Insert Tables": {
+      "main": [[{ "node": "Wait All Tables", "type": "main", "index": 0 }]]
+    },
+    "Wait All Tables": {
+      "main": [[{ "node": "Build Welcome Email", "type": "main", "index": 0 }]]
+    },
+    "Build Welcome Email": {
+      "main": [[{ "node": "Send Welcome Email", "type": "main", "index": 0 }]]
+    },
+    "Send Welcome Email": {
+      "main": [[{ "node": "Respond - Onboard OK", "type": "main", "index": 0 }]]
+    },
+
+    "Webhook - Luka Chat": {
+      "main": [[{ "node": "Extraer Contexto", "type": "main", "index": 0 }]]
+    },
+    "Extraer Contexto": {
+      "main": [[{ "node": "Luka AI", "type": "main", "index": 0 }]]
+    },
+    "Luka AI": {
+      "main": [[{ "node": "Respond - Luka Reply", "type": "main", "index": 0 }]]
+    },
+    "OpenAI Model": {
+      "ai_languageModel": [[{ "node": "Luka AI", "type": "ai_languageModel", "index": 0 }]]
+    },
+    "Simple Memory": {
+      "ai_memory": [[{ "node": "Luka AI", "type": "ai_memory", "index": 0 }]]
+    },
+    "Obtener Menú": {
+      "ai_tool": [[{ "node": "Luka AI", "type": "ai_tool", "index": 0 }]]
+    },
+    "Llamar Camarero": {
+      "ai_tool": [[{ "node": "Luka AI", "type": "ai_tool", "index": 0 }]]
+    },
+    "Solicitar Cuenta": {
+      "ai_tool": [[{ "node": "Luka AI", "type": "ai_tool", "index": 0 }]]
+    }
+  },
+
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "staticData": null,
+  "tags": [{ "name": "HOLU" }],
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "instanceId": "holu"
+  }
+}
