@@ -359,6 +359,18 @@ export function useBackofficeState(): BackofficeState {
     sbSelect("inventory", "select=*&order=name")
       .then((data) => { if (data.length) setInventory((data as Record<string, unknown>[]).map(mapDbInventory)); })
       .catch(() => {});
+
+    sbSelect("expenses", "select=*&order=created_at.desc&limit=100")
+      .then((data) => {
+        if (data.length) setExpenses((data as Record<string, unknown>[]).map((r) => ({
+          id: r.id as string,
+          type: (r.expense_type as string) ?? "Caja",
+          detail: (r.detail as string) ?? "",
+          amount: (r.amount as number) ?? 0,
+          createdAt: new Date(r.created_at as string).getTime(),
+        })));
+      })
+      .catch(() => {});
   }, []);
 
   // ─── realtime (instant supplements to polling) ───────────────────────────
@@ -603,8 +615,25 @@ export function useBackofficeState(): BackofficeState {
   }, []);
 
   const addExpense = useCallback((type: string, detail: string, amount: number) => {
-    setExpenses((prev) => [...prev, { id: `exp-${Date.now()}`, type, detail, amount, createdAt: Date.now() }]);
-    setCashSession((prev) => ({ ...prev, expenses: prev.expenses + amount }));
+    const id = `E-${Math.random().toString(36).slice(2, 10).toUpperCase()}`;
+    setExpenses((prev) => [...prev, { id, type, detail, amount, createdAt: Date.now() }]);
+    setCashSession((prev) => {
+      const newExpensesTotal = prev.expenses + amount;
+      if (supabaseAvailable.current) {
+        sbInsert("expenses", {
+          id,
+          restaurant_id: getRestaurantId(),
+          cash_session_id: prev.id || null,
+          expense_type: type,
+          detail,
+          amount,
+        }).catch(() => {});
+        if (prev.id) {
+          sbPatch("cash_sessions", { id: prev.id }, { expenses_total: newExpensesTotal }).catch(() => {});
+        }
+      }
+      return { ...prev, expenses: newExpensesTotal };
+    });
   }, []);
 
   const updateInventoryStock = useCallback((itemId: string, qty: number) => {
@@ -705,15 +734,39 @@ export function useBackofficeState(): BackofficeState {
   }, []);
 
   const createTable = useCallback(async (zone: string, capacity: number) => {
-    setTables((prev) => {
-      const id = Math.max(0, ...prev.map((t) => t.id)) + 1;
-      const qrToken = Math.random().toString(36).substring(2, 7).toUpperCase();
-      const newTable: Table = { id, zone, status: "Libre", guests: capacity, waiterId: null, bill: 0, qrToken };
-      if (supabaseAvailable.current) {
-        sbInsert("tables", { id, restaurant_id: getRestaurantId(), zone, qr_token: qrToken, status: "Libre", guests: capacity }).catch(() => {});
-      }
-      return [...prev, newTable];
-    });
+    const qrToken = randomToken();
+    if (!supabaseAvailable.current) {
+      setTables((prev) => {
+        const id = Math.max(0, ...prev.map((t) => t.id)) + 1;
+        return [...prev, { id, zone, status: "Libre", guests: capacity, waiterId: null, bill: 0, qrToken }];
+      });
+      return;
+    }
+    try {
+      setTables((prev) => {
+        const tableNumber = Math.max(0, ...prev.map((t) => t.id)) + 1;
+        const newTable: Table = { id: tableNumber, zone, status: "Libre", guests: capacity, waiterId: null, bill: 0, qrToken };
+        sbInsert("tables", {
+          restaurant_id: getRestaurantId(),
+          table_number: tableNumber,
+          label: `Mesa ${tableNumber}`,
+          zone,
+          qr_token: qrToken,
+          status: "Libre",
+          guests: capacity,
+        }).then(() => {
+          sbSelect("tables", "select=*&order=id").then((data) => {
+            setTables((data as Record<string, unknown>[]).map(mapDbTable));
+            setQrTokens((data as Record<string, unknown>[]).map((r) => ({
+              tableId: r.id as number,
+              token: r.qr_token as string,
+              active: r.active as boolean,
+            })));
+          }).catch(() => {});
+        }).catch(() => {});
+        return [...prev, newTable];
+      });
+    } catch { /* handled in inner catch */ }
   }, []);
 
   const updateTable = useCallback(async (id: number, data: Partial<Pick<Table, "zone" | "guests">>) => {

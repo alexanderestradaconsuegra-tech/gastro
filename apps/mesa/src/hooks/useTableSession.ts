@@ -180,14 +180,15 @@ export function useTableSession(qrToken: string) {
     });
   }, [qrToken]);
 
-  // ── Load menu from Supabase ─────────────────────────────────────────────
+  // ── Load menu from Supabase once restaurant is known ────────────────────
 
   useEffect(() => {
-    loadMenu().then((items) => {
-      if (items.length > 0) dispatch({ type: "SET_MENU", items });
-      // If Supabase returns nothing, we keep the static MENU fallback
+    const rid = state.tableCtx?.restaurantId;
+    if (!rid) return;
+    loadMenu(rid).then((items) => {
+      dispatch({ type: "SET_MENU", items });
     });
-  }, []);
+  }, [state.tableCtx?.restaurantId]);
 
   // ── Subscribe to realtime order updates ────────────────────────────────
 
@@ -495,12 +496,13 @@ async function resolveQrContext(qrToken: string): Promise<TableContext | null> {
   };
 }
 
-async function loadMenu(): Promise<MenuItem[]> {
+async function loadMenu(restaurantId: string): Promise<MenuItem[]> {
   try {
     const rows = await sbFetch<DbMenuItem>(
       "menu_items",
-      `select=*&restaurant_id=eq.${RESTAURANT_ID}&available=eq.true&visible_client=eq.true&order=category`
+      `select=*&restaurant_id=eq.${encodeURIComponent(restaurantId)}&available=eq.true&visible_client=eq.true&order=category`
     );
+    if (rows.length === 0) return MENU;
     return rows.map((row) => ({
       id: row.id,
       name: row.name,
@@ -517,7 +519,7 @@ async function loadMenu(): Promise<MenuItem[]> {
       stockStatus: (row.stock_status as MenuItem["stockStatus"]) ?? "available",
     }));
   } catch {
-    return [];
+    return MENU;
   }
 }
 
