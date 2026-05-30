@@ -160,8 +160,11 @@ const initialState: SessionState = {
 
 export function useTableSession(qrToken: string) {
   const [state, dispatch] = useReducer(reducer, initialState);
-  // Track realtime channel so we can clean up on unmount
   const realtimeChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  // True once the table has been seen in a non-"Libre" status during this session.
+  // Prevents showing "¡Cuenta cerrada!" when a fresh customer places their first
+  // order and the poll hasn't yet seen the table transition away from "Libre".
+  const tableWasActiveRef = useRef(false);
 
   // ── Resolve QR → table context ──────────────────────────────────────────
 
@@ -248,7 +251,9 @@ export function useTableSession(qrToken: string) {
           `select=status&id=eq.${tableId}&limit=1`
         );
         if (!cancelled && rows[0]?.status) {
-          dispatch({ type: "SET_TABLE_STATUS", status: rows[0].status });
+          const s = rows[0].status;
+          if (s !== "Libre") tableWasActiveRef.current = true;
+          dispatch({ type: "SET_TABLE_STATUS", status: s });
         }
       } catch { /* ignore */ }
     }
@@ -433,6 +438,7 @@ export function useTableSession(qrToken: string) {
 
   return {
     ...state,
+    tableWasActive: tableWasActiveRef.current,
     addItem,
     removeItem,
     setCartNote,

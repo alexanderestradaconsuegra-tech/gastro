@@ -349,10 +349,11 @@ const DISH_STATUS_LABEL: Record<string, string> = {
   served: "Servido ✓",
 };
 
-function OrderStatus({ orders, tableLabel, tableStatus }: {
+function OrderStatus({ orders, tableLabel, tableStatus, tableWasActive }: {
   orders: Order[];
   tableLabel: string;
   tableStatus: string;
+  tableWasActive: boolean;
 }) {
   const moneyFmt = (n: number) => `$${Number(n || 0).toLocaleString("es-CL")}`;
   const active = orders.filter((o) => (o.status as string) !== "served" && (o.status as string) !== "cancelled");
@@ -360,8 +361,9 @@ function OrderStatus({ orders, tableLabel, tableStatus }: {
     (o.items ?? []).map((ci) => ({ ...ci, orderStatus: o.status, orderId: o.id }))
   );
 
-  // Table paid — show thank-you
-  if (tableStatus === "Libre" && orders.length > 0) {
+  // Table paid — show thank-you only after the table was seen as active (non-"Libre")
+  // to avoid showing it to a fresh customer whose order arrived before the status poll updated.
+  if (tableStatus === "Libre" && orders.length > 0 && tableWasActive) {
     return (
       <main className="screen fade">
         <Header tableLabel={tableLabel} />
@@ -876,7 +878,7 @@ export default function GastroMesa({ qrToken }: { qrToken: string }) {
           tableLabel={tableCtx.tableLabel}
         />
       )}
-      {tab === "order" && <OrderStatus orders={session.orders} tableLabel={tableCtx.tableLabel} tableStatus={session.tableStatus} />}
+      {tab === "order" && <OrderStatus orders={session.orders} tableLabel={tableCtx.tableLabel} tableStatus={session.tableStatus} tableWasActive={session.tableWasActive} />}
       {tab === "waiter" && (
         <Waiter
           pending={session.waiterCall.pending}
