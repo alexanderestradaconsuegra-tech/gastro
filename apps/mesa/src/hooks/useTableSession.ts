@@ -477,6 +477,14 @@ async function resolveQrContext(qrToken: string): Promise<TableContext | null> {
     );
     const row = rows[0];
     if (row) {
+      // Mark table as "Conectado" server-side so admin/camarero see it immediately.
+      // Fire-and-forget — failure is non-fatal (table will activate on first order anyway).
+      fetch("/api/table-connect", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ qr_token: qrToken }),
+      }).catch(() => {});
+
       return {
         qrToken,
         tableId: row.id,
