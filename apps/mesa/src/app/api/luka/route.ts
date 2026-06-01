@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-const LUKA_URL = process.env.N8N_WEBHOOK_BASE_URL
-  ? `${process.env.N8N_WEBHOOK_BASE_URL}/webhook/d553eaf3-6e79-4904-a234-7e47fcf7344d`
-  : "";
+const LUKA_URL = `${process.env.N8N_WEBHOOK_BASE_URL ?? "https://n8n-n8n.fa2cjf.easypanel.host"}/webhook/d553eaf3-6e79-4904-a234-7e47fcf7344d`;
 
 export async function POST(req: NextRequest) {
   if (!LUKA_URL) {

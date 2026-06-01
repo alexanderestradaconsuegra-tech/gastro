@@ -238,17 +238,19 @@ export const INITIAL_REVIEWS: Review[] = [
   { id: "r3", tableId: 5, waiterId: "w2", rating: 3, comment: "Esperamos un poco, pero valió la pena", source: "QR Mesa", createdAt: new Date(Date.now() - 10800000).toISOString() },
 ];
 
+const N8N_BASE = process.env.NEXT_PUBLIC_N8N_WEBHOOK_BASE_URL ?? "https://n8n-n8n.fa2cjf.easypanel.host";
+
 export const WEBHOOKS = {
-  orderCreate:        (process.env.NEXT_PUBLIC_N8N_WEBHOOK_BASE_URL ?? "") + "/webhook/order-create",
-  camareroCall:       (process.env.NEXT_PUBLIC_N8N_WEBHOOK_BASE_URL ?? "") + "/webhook/camarero-call",
-  kitchenCall:        (process.env.NEXT_PUBLIC_N8N_WEBHOOK_BASE_URL ?? "") + "/webhook/kitchen-call",
-  billRequest:        (process.env.NEXT_PUBLIC_N8N_WEBHOOK_BASE_URL ?? "") + "/webhook/bill-request",
-  receiptPrint:       (process.env.NEXT_PUBLIC_N8N_WEBHOOK_BASE_URL ?? "") + "/webhook/receipt-print",
-  feedback:           (process.env.NEXT_PUBLIC_N8N_WEBHOOK_BASE_URL ?? "") + "/webhook/feedback",
-  cashClose:          (process.env.NEXT_PUBLIC_N8N_WEBHOOK_BASE_URL ?? "") + "/webhook/cash-close",
-  luka:               (process.env.NEXT_PUBLIC_N8N_WEBHOOK_BASE_URL ?? "") + "/webhook/d553eaf3-6e79-4904-a234-7e47fcf7344d",
-  staffCreate:        (process.env.NEXT_PUBLIC_N8N_WEBHOOK_BASE_URL ?? "") + "/webhook/staff-create",
-  restaurantOnboard:  (process.env.NEXT_PUBLIC_N8N_WEBHOOK_BASE_URL ?? "") + "/webhook/restaurant-onboard",
+  orderCreate:        N8N_BASE + "/webhook/order-create",
+  camareroCall:       N8N_BASE + "/webhook/camarero-call",
+  kitchenCall:        N8N_BASE + "/webhook/kitchen-call",
+  billRequest:        N8N_BASE + "/webhook/bill-request",
+  receiptPrint:       N8N_BASE + "/webhook/receipt-print",
+  feedback:           N8N_BASE + "/webhook/feedback",
+  cashClose:          N8N_BASE + "/webhook/cash-close",
+  luka:               N8N_BASE + "/webhook/d553eaf3-6e79-4904-a234-7e47fcf7344d",
+  staffCreate:        N8N_BASE + "/webhook/staff-create",
+  restaurantOnboard:  N8N_BASE + "/webhook/restaurant-onboard",
 } as const;
 
 export const STATUS_COLORS: Record<string, string> = {

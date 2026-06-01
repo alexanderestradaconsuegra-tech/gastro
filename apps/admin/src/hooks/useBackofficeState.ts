@@ -694,7 +694,7 @@ export function useBackofficeState(): BackofficeState {
 
   const createStaff = useCallback(async (name: string, email: string, role: StaffRole, pin: string, shift: string): Promise<{ ok: boolean; error?: string }> => {
     const rid = getRestaurantId();
-    const n8nBase = process.env.NEXT_PUBLIC_N8N_WEBHOOK_BASE_URL ?? process.env.N8N_WEBHOOK_BASE_URL ?? "";
+    const n8nBase = process.env.NEXT_PUBLIC_N8N_WEBHOOK_BASE_URL ?? "https://n8n-n8n.fa2cjf.easypanel.host";
     if (n8nBase && !supabaseAvailable.current === false) {
       try {
         const res = await fetch(`${n8nBase}/webhook/staff-create`, {
