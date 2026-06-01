@@ -23,7 +23,7 @@ export default function Page() {
           letterSpacing: 2,
         }}
       >
-        NIDO
+        HOLU
       </div>
     );
   }

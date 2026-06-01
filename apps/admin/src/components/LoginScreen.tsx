@@ -69,7 +69,7 @@ export default function LoginScreen({ onLogin, loading }: Props) {
       <div style={S.card}>
         {/* Header */}
         <div style={S.header}>
-          <span style={S.logo}>NIDO</span>
+          <span style={S.logo}>HOLU</span>
           <span style={S.subtitle}>Panel de gestión</span>
         </div>
 
