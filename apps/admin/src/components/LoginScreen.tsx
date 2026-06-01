@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import type { StaffRole } from "@/lib/constants";
 
 interface StaffOption {
@@ -34,9 +35,13 @@ interface Props {
 }
 
 export default function LoginScreen({ onLogin, loading }: Props) {
+  const router = useRouter();
   const [selected, setSelected] = useState<StaffOption | null>(null);
   const [pin, setPin]           = useState("");
   const [error, setError]       = useState<string | null>(null);
+  const [emailMode, setEmailMode] = useState(false);
+  const [emailVal, setEmailVal]   = useState("");
+  const [passVal, setPassVal]     = useState("");
 
   const handleKey = (k: string) => {
     if (k === "⌫") {
@@ -64,6 +69,13 @@ export default function LoginScreen({ onLogin, loading }: Props) {
     setError(null);
   };
 
+  const handleEmailLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!emailVal.trim() || !passVal) return;
+    const { ok, error: e2 } = await onLogin(emailVal.trim().toLowerCase(), passVal);
+    if (!ok) setError(e2 ?? "Credenciales incorrectas");
+  };
+
   return (
     <div style={S.root}>
       <div style={S.card}>
@@ -73,7 +85,41 @@ export default function LoginScreen({ onLogin, loading }: Props) {
           <span style={S.subtitle}>Panel de gestión</span>
         </div>
 
-        {!selected ? (
+        {emailMode ? (
+          /* ── Email / password login ──────────────────────── */
+          <>
+            <button style={S.back} onClick={() => { setEmailMode(false); setError(null); setEmailVal(""); setPassVal(""); }}>
+              ← Volver
+            </button>
+            <p style={S.prompt}>Acceso con correo</p>
+            <form onSubmit={handleEmailLogin} style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              <input
+                type="email"
+                value={emailVal}
+                onChange={(e) => { setEmailVal(e.target.value); setError(null); }}
+                placeholder="correo@ejemplo.com"
+                style={S.emailInput}
+                autoComplete="email"
+              />
+              <input
+                type="password"
+                value={passVal}
+                onChange={(e) => { setPassVal(e.target.value); setError(null); }}
+                placeholder="Contraseña / PIN"
+                style={S.emailInput}
+                autoComplete="current-password"
+              />
+              {error && <p style={S.error}>{error}</p>}
+              <button
+                type="submit"
+                style={{ ...S.emailBtn, opacity: loading ? 0.6 : 1 }}
+                disabled={loading}
+              >
+                {loading ? "Verificando…" : "Entrar"}
+              </button>
+            </form>
+          </>
+        ) : !selected ? (
           /* ── Staff selector ──────────────────────────────── */
           <>
             <p style={S.prompt}>¿Quién eres?</p>
@@ -102,6 +148,14 @@ export default function LoginScreen({ onLogin, loading }: Props) {
                   </span>
                 </button>
               ))}
+            </div>
+            <div style={S.ownerSection}>
+              <button style={S.ownerBtn} onClick={() => setEmailMode(true)}>
+                Propietario / Admin — acceso con correo
+              </button>
+              <button style={S.registerLink} onClick={() => router.push("/register")}>
+                ¿Primera vez? Crear restaurante →
+              </button>
             </div>
           </>
         ) : (
@@ -338,4 +392,56 @@ const S = {
     color: "var(--dim, #888)",
     marginTop: 12,
   },
+  ownerSection: {
+    marginTop: 20,
+    display: "flex",
+    flexDirection: "column" as const,
+    alignItems: "center",
+    gap: 10,
+    borderTop: "1px solid var(--line, #2a2a2a)",
+    paddingTop: 16,
+  },
+  ownerBtn: {
+    background: "none",
+    border: "1px solid #2a2a2a",
+    borderRadius: 8,
+    color: "#888",
+    fontSize: 12,
+    cursor: "pointer",
+    padding: "9px 16px",
+    width: "100%",
+    transition: "border-color 0.15s",
+  } as React.CSSProperties,
+  registerLink: {
+    background: "none",
+    border: "none",
+    color: "#c9a84c",
+    fontSize: 12,
+    cursor: "pointer",
+    padding: 0,
+    textDecoration: "underline",
+  } as React.CSSProperties,
+  emailInput: {
+    background: "var(--panel2, #111)",
+    border: "1px solid var(--line, #2a2a2a)",
+    borderRadius: 8,
+    padding: "11px 14px",
+    color: "var(--text, #eee)",
+    fontSize: 14,
+    outline: "none",
+    width: "100%",
+    boxSizing: "border-box" as const,
+  } as React.CSSProperties,
+  emailBtn: {
+    padding: "13px 0",
+    background: "#c9a84c",
+    color: "#000",
+    border: "none",
+    borderRadius: 10,
+    fontSize: 15,
+    fontWeight: 700,
+    cursor: "pointer",
+    width: "100%",
+    marginTop: 4,
+  } as React.CSSProperties,
 };
