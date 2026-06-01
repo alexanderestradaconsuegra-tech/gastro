@@ -20,7 +20,7 @@ export async function POST(
     return NextResponse.json({ error: "Unknown event" }, { status: 404 });
   }
 
-  const base = process.env.N8N_WEBHOOK_BASE_URL;
+  const base = process.env.N8N_WEBHOOK_BASE_URL ?? process.env.NEXT_PUBLIC_N8N_WEBHOOK_BASE_URL;
   if (!base) {
     // In dev without n8n configured, log and ack so the UI doesn't break
     const body = await req.json().catch(() => ({}));

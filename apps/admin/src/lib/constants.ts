@@ -239,16 +239,16 @@ export const INITIAL_REVIEWS: Review[] = [
 ];
 
 export const WEBHOOKS = {
-  orderCreate:        (process.env.N8N_WEBHOOK_BASE_URL ?? "") + "/webhook/order-create",
-  camareroCall:       (process.env.N8N_WEBHOOK_BASE_URL ?? "") + "/webhook/camarero-call",
-  kitchenCall:        (process.env.N8N_WEBHOOK_BASE_URL ?? "") + "/webhook/kitchen-call",
-  billRequest:        (process.env.N8N_WEBHOOK_BASE_URL ?? "") + "/webhook/bill-request",
-  receiptPrint:       (process.env.N8N_WEBHOOK_BASE_URL ?? "") + "/webhook/receipt-print",
-  feedback:           (process.env.N8N_WEBHOOK_BASE_URL ?? "") + "/webhook/feedback",
-  cashClose:          (process.env.N8N_WEBHOOK_BASE_URL ?? "") + "/webhook/cash-close",
-  luka:               (process.env.N8N_WEBHOOK_BASE_URL ?? "") + "/webhook/d553eaf3-6e79-4904-a234-7e47fcf7344d",
-  staffCreate:        (process.env.N8N_WEBHOOK_BASE_URL ?? "") + "/webhook/staff-create",
-  restaurantOnboard:  (process.env.N8N_WEBHOOK_BASE_URL ?? "") + "/webhook/restaurant-onboard",
+  orderCreate:        (process.env.NEXT_PUBLIC_N8N_WEBHOOK_BASE_URL ?? "") + "/webhook/order-create",
+  camareroCall:       (process.env.NEXT_PUBLIC_N8N_WEBHOOK_BASE_URL ?? "") + "/webhook/camarero-call",
+  kitchenCall:        (process.env.NEXT_PUBLIC_N8N_WEBHOOK_BASE_URL ?? "") + "/webhook/kitchen-call",
+  billRequest:        (process.env.NEXT_PUBLIC_N8N_WEBHOOK_BASE_URL ?? "") + "/webhook/bill-request",
+  receiptPrint:       (process.env.NEXT_PUBLIC_N8N_WEBHOOK_BASE_URL ?? "") + "/webhook/receipt-print",
+  feedback:           (process.env.NEXT_PUBLIC_N8N_WEBHOOK_BASE_URL ?? "") + "/webhook/feedback",
+  cashClose:          (process.env.NEXT_PUBLIC_N8N_WEBHOOK_BASE_URL ?? "") + "/webhook/cash-close",
+  luka:               (process.env.NEXT_PUBLIC_N8N_WEBHOOK_BASE_URL ?? "") + "/webhook/d553eaf3-6e79-4904-a234-7e47fcf7344d",
+  staffCreate:        (process.env.NEXT_PUBLIC_N8N_WEBHOOK_BASE_URL ?? "") + "/webhook/staff-create",
+  restaurantOnboard:  (process.env.NEXT_PUBLIC_N8N_WEBHOOK_BASE_URL ?? "") + "/webhook/restaurant-onboard",
 } as const;
 
 export const STATUS_COLORS: Record<string, string> = {
