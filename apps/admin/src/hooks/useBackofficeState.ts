@@ -707,7 +707,7 @@ export function useBackofficeState(): BackofficeState {
           return { ok: false, error: err.error ?? "Error al crear staff" };
         }
         // Optimistic local update; real data will arrive via next poll
-        const newMember: StaffMember = { id: `staff-${Date.now()}`, name, email, role, shift, status: "Activo", tables: [], phone: "" };
+        const newMember: StaffMember = { id: crypto.randomUUID(), name, email, role, shift, status: "Activo", tables: [], phone: "" };
         setStaff((prev) => [...prev, newMember]);
         return { ok: true };
       } catch (e) {
@@ -715,7 +715,7 @@ export function useBackofficeState(): BackofficeState {
       }
     }
     // Fallback: direct insert (dev/demo mode only — no Auth user created)
-    const id = `staff-${Date.now()}`;
+    const id = crypto.randomUUID();
     const newMember: StaffMember = { id, name, email, role, shift, status: "Activo", tables: [], phone: "" };
     setStaff((prev) => [...prev, newMember]);
     if (!supabaseAvailable.current) return { ok: true };
