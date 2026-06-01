@@ -49,7 +49,7 @@ export interface BackofficeState {
   saveMenuItem: (item: MenuItem) => void;
   toggleMenuAvailability: (itemId: string) => void;
   deleteMenuItem: (itemId: string) => void;
-  openCash: (userId: string) => void;
+  openCash: (userId: string, openingCash?: number) => void;
   closeCash: () => void;
   changeTurn: (turn: string) => void;
   addExpense: (type: string, detail: string, amount: number) => void;
@@ -574,7 +574,7 @@ export function useBackofficeState(): BackofficeState {
     sbDelete("menu_items", { id: itemId }).catch(() => {});
   }, []);
 
-  const openCash = useCallback((userId: string) => {
+  const openCash = useCallback((userId: string, openingCash: number = 0) => {
     const now = new Date();
     const id = `SHIFT-${now.toISOString().split("T")[0]}-${Date.now()}`;
     setCashSession({
@@ -583,7 +583,7 @@ export function useBackofficeState(): BackofficeState {
       openedAt: now.toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" }),
       turn: "Noche",
       openedBy: userId,
-      openingCash: 150000,
+      openingCash,
       cash: 0,
       card: 0,
       transfer: 0,
@@ -597,7 +597,7 @@ export function useBackofficeState(): BackofficeState {
       opened_by: null,
       turn: "Noche",
       status: "open",
-      opening_cash: 150000,
+      opening_cash: openingCash,
     }).catch(() => {});
   }, []);
 

@@ -1085,7 +1085,25 @@ function CashClosingView({ state, staffId }: { state: BackofficeState; staffId: 
   const [reportOpen, setReportOpen] = useState(false);
   const [whatsappOpen, setWhatsappOpen] = useState(false);
   const [turn, setTurn] = useState(state.cashSession.turn);
+  const [openingModal, setOpeningModal] = useState(false);
+  const [openingAmount, setOpeningAmount] = useState("");
+  const [cashMsg, setCashMsg] = useState("");
   const session = state.cashSession;
+
+  const handleOpenCash = () => {
+    const amount = parseInt(openingAmount.replace(/\D/g, ""), 10) || 0;
+    state.openCash(staffId, amount);
+    setOpeningModal(false);
+    setOpeningAmount("");
+    setCashMsg(`Caja abierta con fondo inicial de $${amount.toLocaleString("es-CL")}`);
+    setTimeout(() => setCashMsg(""), 5000);
+  };
+
+  const handleCloseCash = () => {
+    state.closeCash();
+    setCashMsg("Caja cerrada correctamente.");
+    setTimeout(() => setCashMsg(""), 5000);
+  };
   const whatsappText = encodeURIComponent(`Cierre de caja ${RESTAURANT.name}\nTurno: ${session.turn}\nEfectivo: ${money(session.cash)}\nTarjeta: ${money(session.card)}\nTransferencia: ${money(session.transfer)}\nPropinas: ${money(session.tips)}`);
   const whatsappUrl = `https://wa.me/?text=${whatsappText}`;
   const downloadReport = () => {
@@ -1100,14 +1118,36 @@ function CashClosingView({ state, staffId }: { state: BackofficeState; staffId: 
   };
   return (
     <div className="grid">
+      {cashMsg && (
+        <div style={{ borderRadius: 16, padding: "12px 16px", background: "rgba(52,211,153,.15)", border: "1px solid rgba(52,211,153,.3)", color: "var(--green)", fontWeight: 700 }}>
+          {cashMsg}
+        </div>
+      )}
+      {openingModal && (
+        <div className="modal-backdrop">
+          <div className="modal" style={{ maxWidth: 360 }}>
+            <div className="panel-head"><h2>Abrir caja</h2></div>
+            <div className="field" style={{ marginBottom: 16 }}>
+              <label>Fondo inicial en efectivo (CLP)</label>
+              <input className="input" type="number" min="0" step="1000" placeholder="Ej: 50000"
+                value={openingAmount} onChange={(e) => setOpeningAmount(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleOpenCash()} autoFocus />
+            </div>
+            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+              <button className="btn ghost" onClick={() => setOpeningModal(false)}>Cancelar</button>
+              <button className="btn primary" onClick={handleOpenCash}>Abrir caja</button>
+            </div>
+          </div>
+        </div>
+      )}
       <div className="shift-banner">
         <div>
           <h2 style={{ margin: 0, fontFamily: "Playfair Display", fontSize: 30 }}>Caja {session.status}</h2>
           <p style={{ margin: "6px 0 0", color: "var(--muted)" }}>Turno {session.turn} · Apertura {session.openedAt}</p>
         </div>
         <div className="shift-actions">
-          <button className="btn primary" onClick={() => state.openCash(staffId)}>Abrir caja</button>
-          <button className="btn danger" onClick={() => state.closeCash()}>Cerrar caja</button>
+          <button className="btn primary" onClick={() => setOpeningModal(true)}>Abrir caja</button>
+          <button className="btn danger" onClick={handleCloseCash}>Cerrar caja</button>
         </div>
       </div>
       <div className="panel">
@@ -1512,6 +1552,7 @@ function StaffEditor({ staff, state, onClose }: { staff: StaffMember; state: Bac
                     setUploading(true);
                     const url = await uploadStaffAvatar(file, form.id);
                     if (url) { update("avatarUrl", url); state.saveStaffAvatar(form.id, url); }
+                    else alert("No se pudo subir la foto. Verifica que el archivo sea JPG, PNG o WebP menor a 2MB.");
                     setUploading(false);
                   }} />
               </label>
@@ -1723,6 +1764,7 @@ function MenuEditor({ item, onClose, onSave }: { item: MenuItem; onClose: () => 
                     setUploading(true);
                     const url = await uploadMenuImage(file, form.id || `dish-${Date.now()}`);
                     if (url) update("imageUrl", url);
+                    else alert("No se pudo subir la imagen. Verifica que sea JPG, PNG o WebP menor a 5MB.");
                     setUploading(false);
                   }} />
               </label>
