@@ -39,7 +39,7 @@ const modules = [
   { name: "HOLU Camareros",      eyebrow: "Equipo de servicio",  desc: "Llamados de mesa, pedidos activos, mensajes del cliente, mesas asignadas y colaboración del administrador en tiempo real." },
   { name: "HOLU Cocina",         eyebrow: "Pantalla de cocina",  desc: "Pedidos organizados por estado para acelerar el servicio, reducir errores y mantener al equipo coordinado." },
   { name: "HOLU Administración", eyebrow: "Control total",       desc: "Ventas, empleados, carta, QR de mesas, inventario, propinas, caja, turnos, boletas, reportes y auditoría." },
-  { name: "HOLU Inteligencia",   eyebrow: "IA práctica",         desc: "Asistencia inteligente para recomendaciones, alergias, automatizaciones, mensajes, operación y análisis del restaurante." },
+  { name: "HOLU Autoservicio",   eyebrow: "Tótem de barra",      desc: "Clientes hacen pedidos solos desde una pantalla en barra o mostrador, sin filas, sin esperar atención." },
   { name: "HOLU Analítica",      eyebrow: "Decisiones claras",   desc: "Métricas de ventas, platos más vendidos, propinas, rendimiento por camarero, tiempos de cocina y comportamiento por mesa." },
 ];
 
@@ -58,44 +58,33 @@ const benefits = [
   "Entrega una imagen premium y diferente frente a otros restaurantes.",
 ];
 
-const plans = [
-  {
-    name: "Arranque",
-    price: "USD 29",
-    desc: "Perfecto para restaurantes que quieren dejar atrás el caos y comenzar a organizar toda la operación.",
-    features: ["Administración completa","Panel de camareros","Pantalla de cocina","Pedidos en tiempo real","Caja y turnos","Boletas y propinas","Panel de ventas"],
-  },
-  {
-    name: "Impulso",
-    price: "USD 49",
-    desc: "La experiencia completa para mesas QR y atención moderna dentro del restaurante.",
-    features: ["Todo el plan Arranque","Mesas con QR","Carta digital premium","Llamado al camarero","Solicitud de cobro","Reseñas de clientes","Estado del pedido en vivo"],
-    highlight: true,
-  },
-  {
-    name: "Élite",
-    price: "USD 99",
-    desc: "Toda la potencia de HOLU con autoservicio, inteligencia artificial y operación avanzada.",
-    features: ["Todo el plan Impulso","Tótem de autoservicio","IA en mesa","IA para administración","Recomendaciones inteligentes","Automatizaciones","Multi-sucursal","Analítica avanzada"],
-  },
+const planFeatures = [
+  "Mesas con QR y carta digital premium",
+  "Panel de camareros en tiempo real",
+  "Pantalla de cocina organizada",
+  "Administración completa",
+  "Inventario con precio costo",
+  "Caja, turnos y boletas",
+  "Propinas y reseñas de clientes",
+  "Analítica de ventas y rendimiento",
+  "🎁 Tótem de autoservicio para barra — de regalo",
 ];
 
 const stats = [
-  ["Demo real", "Prueba HOLU sin crear cuenta"],
   ["4 roles",   "Mesas, camareros, cocina y caja"],
   ["1 QR",      "Toda la experiencia desde la mesa"],
   ["En vivo",   "Todo sincronizado en tiempo real"],
-  ["+ IA",      "Asistencia inteligente integrada"],
+  ["Regalo",    "Tótem de autoservicio para barra"],
   ["Cloud",     "Accede desde cualquier dispositivo"],
 ];
 
 const faqs = [
-  { q: "¿HOLU reemplaza al camarero?",              a: "No. HOLU ayuda al equipo a trabajar mejor. El camarero sigue siendo clave para la atención, la experiencia humana y el cobro presencial cuando corresponde." },
-  { q: "¿Funciona con QR por mesa?",                a: "Sí. Cada mesa tiene un QR único. El cliente entra directamente a la experiencia de su mesa y todo queda conectado con pedidos, cocina, camareros y administración." },
-  { q: "¿Puedo agregar o editar platos?",           a: "Sí. Desde administración puedes crear platos, cambiar precios, subir imágenes, activar o desactivar disponibilidad y decidir qué ve el cliente." },
-  { q: "¿El sistema incluye propinas y caja?",      a: "Sí. HOLU permite registrar propinas aceptadas o rechazadas, abrir caja, cerrar caja, cambiar turnos, imprimir cierres y revisar reportes." },
-  { q: "¿Sirve para comida rápida o cafés?",        a: "Sí. Con el módulo de autoservicio puedes usar tótems conectados a la misma carta, cocina, caja y administración." },
-  { q: "¿La inteligencia artificial está incluida?", a: "La inteligencia avanzada está incluida en el plan Élite. Puede ayudar con recomendaciones, automatizaciones, respuestas y análisis del restaurante." },
+  { q: "¿HOLU reemplaza al camarero?",         a: "No. HOLU ayuda al equipo a trabajar mejor. El camarero sigue siendo clave para la atención, la experiencia humana y el cobro presencial cuando corresponde." },
+  { q: "¿Funciona con QR por mesa?",           a: "Sí. Cada mesa tiene un QR único. El cliente entra directamente a la experiencia de su mesa y todo queda conectado con pedidos, cocina, camareros y administración." },
+  { q: "¿Puedo agregar o editar platos?",       a: "Sí. Desde administración puedes crear platos, cambiar precios, subir imágenes, activar o desactivar disponibilidad y decidir qué ve el cliente." },
+  { q: "¿El sistema incluye propinas y caja?",  a: "Sí. HOLU permite registrar propinas aceptadas o rechazadas, abrir caja, cerrar caja, cambiar turnos, imprimir cierres y revisar reportes." },
+  { q: "¿Qué es el tótem de autoservicio?",    a: "Es una pantalla en barra o mostrador desde donde los clientes hacen sus propios pedidos sin esperar atención. Está conectada en tiempo real con cocina, caja y administración, y viene de regalo con tu plan." },
+  { q: "¿Sirve para comida rápida o cafés?",   a: "Sí. El tótem de autoservicio de barra es ideal para cafés, comida rápida y cualquier negocio con flujo alto de pedidos. Todo queda conectado a la misma carta, cocina y caja." },
 ];
 
 const flow = [
@@ -211,7 +200,7 @@ a{color:inherit;text-decoration:none}
 /* STATS */
 .stats-shell{margin-top:32px}
 .stats-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
-.stats{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;overflow-x:auto;padding-bottom:4px;scrollbar-width:none}
+.stats{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;overflow-x:auto;padding-bottom:4px;scrollbar-width:none}
 .stats::-webkit-scrollbar{display:none}
 .stat{border-radius:18px;background:linear-gradient(145deg,rgba(255,255,255,.055),rgba(255,255,255,.02));border:1px solid var(--line);padding:16px;min-width:160px}
 .stat b{font-size:22px;color:var(--gold2);display:block;font-weight:700;line-height:1}
@@ -261,7 +250,6 @@ a{color:inherit;text-decoration:none}
 .demo-safe{margin-top:14px;border-radius:14px;background:rgba(52,211,153,.06);border:1px solid rgba(52,211,153,.12);padding:12px 14px;color:#b8f5d8;font-size:13px;line-height:1.6;position:relative;z-index:1}
 
 /* PLANS */
-.plans{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
 .plan.highlight{border-color:rgba(240,212,141,.32);background:linear-gradient(145deg,rgba(200,169,107,.1),rgba(255,255,255,.03))}
 .tag{position:absolute;top:14px;right:14px;border-radius:999px;background:rgba(52,211,153,.12);color:var(--green);font-size:11px;padding:6px 10px;font-weight:600;letter-spacing:.04em}
 .price{font-size:30px;font-weight:700;color:var(--gold2);margin:12px 0}
@@ -320,7 +308,7 @@ a{color:inherit;text-decoration:none}
   .metrics{display:none}
   .stats-shell{display:none}
   .cta-row{margin-top:20px}
-  .metrics,.modules,.plans,.showcase-grid{grid-template-columns:1fr}
+  .metrics,.modules,.showcase-grid{grid-template-columns:1fr}
   .section{padding:52px 0}
   .section-head{display:block}
   .showcase-card{min-height:320px}
@@ -335,6 +323,7 @@ export default function Landing({ n8nBase, adminUrl }: { n8nBase?: string; admin
   const [openFaq, setOpenFaq] = useState(0);
   const [form, setForm] = useState({ name: "", email: "", phone: "" });
   const [formState, setFormState] = useState<"idle" | "loading" | "done" | "error">("idle");
+  const [billing, setBilling] = useState<"monthly" | "annual">("monthly");
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const _ = adminUrl;
@@ -506,31 +495,18 @@ export default function Landing({ n8nBase, adminUrl }: { n8nBase?: string; admin
       </section>
 
       <section id="demo" className="section">
-        <div className="container split">
+        <div className="container">
           <div className="demo-panel">
             <div className="eyebrow">Flujo real</div>
             <h2 style={{ fontSize: "clamp(34px,4vw,48px)", letterSpacing: "-.05em", marginTop: 12 }}>De la mesa a la cocina. Sin caos.</h2>
-            <div className="flow-track">
+            <div className="flow-track" style={{ display: "grid", gridTemplateColumns: "repeat(2,1fr)", gap: 12 }}>
               {flow.map(([number, title, text]) => (
-                <div className="flow-card" key={number}>
+                <div className="flow-card" key={number} style={{ borderBottom: 0, paddingBottom: 0 }}>
                   <div className="flow-number">{number}</div>
                   <div className="flow-content"><b>{title}</b><span>{text}</span></div>
                 </div>
               ))}
             </div>
-          </div>
-
-          <div className="demo-card-pro">
-            <span className="label">Acceso instantáneo</span>
-            <h3 style={{ fontSize: "clamp(24px,3vw,32px)", lineHeight: 1.05, letterSpacing: "-.04em", margin: "12px 0 10px", fontWeight: 700 }}>Elige cómo quieres probar <span style={{ color: "var(--gold2)" }}>HOLU</span>.</h3>
-            <p style={{ color: "var(--muted)", fontSize: 14, lineHeight: 1.7, margin: 0 }}>La demo está lista para usar desde cualquier dispositivo. No necesitas tarjeta, instalación ni crear usuario.</p>
-            <div className="demo-options">
-              <a className="demo-option primary-demo" href="/demo"><div className="demo-badge">🏠</div><div><strong>Demo completa</strong><small>Todo el restaurante funcionando.</small></div></a>
-              <a className="demo-option" href="/demo/mesa/7"><div className="demo-badge">📱</div><div><strong>Mesa QR</strong><small>Cliente escaneando y pidiendo.</small></div></a>
-              <a className="demo-option" href="/demo/cocina"><div className="demo-badge">🍳</div><div><strong>Cocina</strong><small>Pedidos organizados en vivo.</small></div></a>
-              <a className="demo-option" href="/demo/caja"><div className="demo-badge">💳</div><div><strong>Caja</strong><small>Pagos, propinas y boletas.</small></div></a>
-            </div>
-            <div className="demo-safe">La demo usa datos temporales y se reinicia automáticamente.</div>
           </div>
         </div>
       </section>
@@ -627,28 +603,68 @@ export default function Landing({ n8nBase, adminUrl }: { n8nBase?: string; admin
       <section id="precios" className="section">
         <div className="container">
           <div className="section-head">
-            <h2>Empieza hoy. Activa tu restaurante cuando quieras.</h2>
-            <p>Prueba la demo completa sin registro. Cuando quieras operar tu restaurante real, activas HOLU en minutos desde la nube.</p>
+            <h2>Un solo plan. Todo incluido.</h2>
+            <p>Sin tiers, sin sorpresas. Todo lo que necesita tu restaurante desde el primer día.</p>
           </div>
-          <div className="plans">
-            {plans.map(plan => (
-              <article className={`card plan ${plan.highlight ? "highlight" : ""}`} key={plan.name} style={{ position: "relative" }}>
-                {plan.highlight && <span className="tag">Recomendado</span>}
-                <h3>{plan.name}</h3>
-                <div className="price">{plan.price}<small style={{ fontSize: 13, color: "var(--muted)", fontWeight: 500 }}> / mes</small></div>
-                <p style={{ color: "var(--muted)", fontSize: 14, lineHeight: 1.6 }}>{plan.desc}</p>
-                <div className="features">{plan.features.map(f => <div key={f}>✓ {f}</div>)}</div>
-                <a
-                  className="btn wa"
-                  href={`${WA}?text=${encodeURIComponent(`Hola, me interesa el plan ${plan.name} de HOLU`)}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  style={{ width: "100%", marginTop: 4 }}
-                >
-                  💬 Pedir información
-                </a>
-              </article>
-            ))}
+
+          {/* Billing toggle */}
+          <div style={{ display: "flex", justifyContent: "center", marginBottom: 32 }}>
+            <div style={{ display: "flex", gap: 0, background: "rgba(255,255,255,.06)", border: "1px solid var(--line)", borderRadius: 16, padding: 4 }}>
+              <button
+                type="button"
+                onClick={() => setBilling("monthly")}
+                style={{ padding: "10px 24px", borderRadius: 12, border: 0, cursor: "pointer", fontWeight: 600, fontSize: 14, transition: ".2s ease",
+                  background: billing === "monthly" ? "linear-gradient(135deg,var(--gold),var(--gold2))" : "transparent",
+                  color: billing === "monthly" ? "#160f02" : "var(--muted)" }}
+              >
+                Mensual
+              </button>
+              <button
+                type="button"
+                onClick={() => setBilling("annual")}
+                style={{ padding: "10px 24px", borderRadius: 12, border: 0, cursor: "pointer", fontWeight: 600, fontSize: 14, transition: ".2s ease",
+                  background: billing === "annual" ? "linear-gradient(135deg,var(--gold),var(--gold2))" : "transparent",
+                  color: billing === "annual" ? "#160f02" : "var(--muted)" }}
+              >
+                Anual&nbsp;<span style={{ fontSize: 12, fontWeight: 700, color: billing === "annual" ? "#064" : "var(--green)" }}>−30%</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Single plan card */}
+          <div style={{ display: "flex", justifyContent: "center" }}>
+            <article className="card plan highlight" style={{ position: "relative", maxWidth: 480, width: "100%" }}>
+              <span className="tag">Todo incluido</span>
+              <h3 style={{ fontSize: 26, marginTop: 8 }}>HOLU — Plan completo</h3>
+              <div className="price" style={{ fontSize: 44, lineHeight: 1 }}>
+                {billing === "monthly" ? (
+                  <>USD&nbsp;<span style={{ fontSize: 56 }}>$15</span><small style={{ fontSize: 14, color: "var(--muted)", fontWeight: 500 }}> / mes</small></>
+                ) : (
+                  <>USD&nbsp;<span style={{ fontSize: 56 }}>$126</span><small style={{ fontSize: 14, color: "var(--muted)", fontWeight: 500 }}> / año</small></>
+                )}
+              </div>
+              {billing === "annual" && (
+                <p style={{ color: "var(--green)", fontSize: 14, margin: "0 0 8px", fontWeight: 600 }}>
+                  Equivale a USD $10.50/mes — ahorras $54 al año
+                </p>
+              )}
+              <div className="features" style={{ marginTop: 16 }}>
+                {planFeatures.map(f => (
+                  <div key={f} style={{ color: f.startsWith("🎁") ? "var(--gold2)" : "var(--muted)", fontWeight: f.startsWith("🎁") ? 600 : 400 }}>
+                    {f.startsWith("🎁") ? f : `✓ ${f}`}
+                  </div>
+                ))}
+              </div>
+              <a
+                className="btn wa"
+                href={`${WA}?text=${encodeURIComponent(`Hola, quiero activar HOLU (plan ${billing === "annual" ? "anual $126" : "mensual $15"})`)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ width: "100%", marginTop: 20, fontSize: 15, padding: "14px 20px" }}
+              >
+                💬 Activar por WhatsApp
+              </a>
+            </article>
           </div>
         </div>
       </section>
@@ -690,7 +706,7 @@ export default function Landing({ n8nBase, adminUrl }: { n8nBase?: string; admin
       <footer className="footer">
         <div className="container footer-in">
           <span>© {new Date().getFullYear()} <span style={{ color: "var(--gold2)" }}>HOLU</span> fluye en tiempo real.</span>
-          <span>Mesas · Camareros · Cocina · Administración · IA · Analítica</span>
+          <span>Mesas · Camareros · Cocina · Administración · Autoservicio · Analítica</span>
         </div>
       </footer>
     </div>
