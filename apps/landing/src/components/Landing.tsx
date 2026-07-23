@@ -232,7 +232,7 @@ a{color:inherit;text-decoration:none}
 .check{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;background:rgba(52,211,153,.12);color:var(--green);font-weight:700;flex:0 0 auto;font-size:13px}
 
 .demo-panel{border-radius:28px;background:linear-gradient(145deg,rgba(255,255,255,.06),rgba(255,255,255,.02));border:1px solid var(--line);padding:28px;box-shadow:var(--shadow)}
-.flow-track{display:grid;gap:12px;margin-top:22px}
+.flow-track{display:grid;gap:12px;margin-top:22px;grid-template-columns:repeat(2,1fr)}
 .flow-card{display:grid;grid-template-columns:50px 1fr;gap:16px;align-items:flex-start;padding:0 0 16px;border-bottom:1px solid rgba(255,255,255,.06)}
 .flow-card:last-child{padding-bottom:0;border-bottom:0}
 .flow-number{width:50px;height:50px;border-radius:16px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);display:grid;place-items:center;font-size:17px;font-weight:700;color:var(--gold2);position:relative;top:2px}
@@ -308,7 +308,7 @@ a{color:inherit;text-decoration:none}
   .metrics{display:none}
   .stats-shell{display:none}
   .cta-row{margin-top:20px}
-  .metrics,.modules,.showcase-grid{grid-template-columns:1fr}
+  .metrics,.modules,.showcase-grid,.flow-track{grid-template-columns:1fr}
   .section{padding:52px 0}
   .section-head{display:block}
   .showcase-card{min-height:320px}
@@ -499,9 +499,9 @@ export default function Landing({ n8nBase, adminUrl }: { n8nBase?: string; admin
           <div className="demo-panel">
             <div className="eyebrow">Flujo real</div>
             <h2 style={{ fontSize: "clamp(34px,4vw,48px)", letterSpacing: "-.05em", marginTop: 12 }}>De la mesa a la cocina. Sin caos.</h2>
-            <div className="flow-track" style={{ display: "grid", gridTemplateColumns: "repeat(2,1fr)", gap: 12 }}>
+            <div className="flow-track">
               {flow.map(([number, title, text]) => (
-                <div className="flow-card" key={number} style={{ borderBottom: 0, paddingBottom: 0 }}>
+                <div className="flow-card" key={number}>
                   <div className="flow-number">{number}</div>
                   <div className="flow-content"><b>{title}</b><span>{text}</span></div>
                 </div>
